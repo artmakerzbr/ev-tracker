@@ -463,13 +463,13 @@ export default function App() {
   const TABS=[{id:"log",label:"Leitura",Icon:IconBolt},{id:"data",label:"Dados",Icon:IconBarChart},{id:"billing",label:"Fatura",Icon:IconReceipt}];
 
   if (!loaded) return (
-    <div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Mono',monospace"}}>
+    <div style={{background:C.bg,minHeight:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Mono',monospace"}}>
       <span style={{fontSize:11,color:C.textLow,letterSpacing:2,textTransform:"uppercase"}}>A carregar…</span>
     </div>
   );
 
   return (
-    <div style={{fontFamily:"'IBM Plex Mono',monospace",background:C.bg,minHeight:"100vh",color:C.textHi,maxWidth:480,margin:"0 auto",paddingBottom:80}}>
+    <div style={{fontFamily:"'IBM Plex Mono',monospace",background:C.bg,minHeight:"100dvh",color:C.textHi,maxWidth:480,margin:"0 auto",paddingBottom:80}}>
 
       {/* HEADER */}
       <div style={{padding:"32px 20px 24px",borderBottom:`1px solid ${C.border}`}}>

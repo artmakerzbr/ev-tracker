@@ -1,28 +1,18 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "./supabase.js";
 
-// ── tokens ─────────────────────────────────────────────────────
 const C = {
-  bg:         "#080a07",
-  surface:    "#0f1210",
-  surfaceHi:  "#161a14",
-  border:     "#1c2119",
-  borderHi:   "#262e22",
-  textHi:     "#eef2e8",
-  textMid:    "#7d8c74",
-  textLow:    "#3d4838",
-  accent:     "#00F563",
-  accentDim:  "#00b849",
-  accentFaint:"#00F56314",
-  tesla:      "#E82127",
-  renault:    "#f0a030",
-  danger:     "#e05050",
+  bg:"#080a07", surface:"#0f1210", surfaceHi:"#161a14",
+  border:"#1c2119", borderHi:"#262e22",
+  textHi:"#eef2e8", textMid:"#7d8c74", textLow:"#3d4838",
+  accent:"#00F563", accentDim:"#00b849", accentFaint:"#00F56314",
+  tesla:"#E82127", renault:"#f0a030", danger:"#e05050",
 };
 
-// ── Icons ───────────────────────────────────────────────────────
-const IconBolt = ({size=24,color=C.textMid}) => (
+// ── Icons ─────────────────────────────────────────────────────────
+const IconHome = ({size=24,color=C.textMid}) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <path d="M13 2L4.5 13.5H11L10 22L19.5 10H13L13 2Z" fill={color}/>
+    <path d="M3 12L12 3L21 12V21H15V15H9V21H3V12Z" fill={color} rx="1"/>
   </svg>
 );
 const IconBarChart = ({size=24,color=C.textMid}) => (
@@ -41,14 +31,14 @@ const IconReceipt = ({size=24,color=C.textMid}) => (
   </svg>
 );
 
-// ── Brand Logos ─────────────────────────────────────────────────
-const TeslaLogo = ({size=28, color="#fff"}) => (
+// ── Brand Logos ───────────────────────────────────────────────────
+const TeslaLogo = ({size=28,color="#fff"}) => (
   <svg width={size} height={size} viewBox="-38.0376 -63.1255 329.6592 378.753" fill={color}>
     <path d="M126.806 252.502l35.476-199.519c33.815 0 44.481 3.708 46.021 18.843 0 0 22.684-8.458 34.125-25.636-44.646-20.688-89.505-21.621-89.505-21.621l-26.176 31.882.059-.004-26.176-31.883s-44.86.934-89.5 21.622c11.431 17.178 34.124 25.636 34.124 25.636 1.549-15.136 12.202-18.844 45.79-18.868l35.762 199.548"/>
     <path d="M126.792 15.36c36.09-.276 77.399 5.583 119.687 24.014 5.652-10.173 7.105-14.669 7.105-14.669C207.357 6.416 164.066.157 126.787 0 89.51.157 46.221 6.417 0 24.705c0 0 2.062 5.538 7.1 14.669 42.28-18.431 83.596-24.29 119.687-24.014h.005"/>
   </svg>
 );
-const RenaultLogo = ({size=28, color="#fff"}) => (
+const RenaultLogo = ({size=28,color="#fff"}) => (
   <svg width={size*0.764} height={size} viewBox="0 0 382 500" fill={color}>
     <polygon points="219.7,89.3 200.6,125 267.4,250 152.8,464.3 38.2,250 171.9,0 133.7,0 0,250 133.7,500 171.9,500 305.6,250"/>
     <polygon points="248.3,0 210.1,0 76.4,250 162.4,410.7 181.5,375 114.6,250 229.2,35.7 343.8,250 210.1,500 248.3,500 382,250"/>
@@ -60,7 +50,7 @@ const CARS = {
   renault: {id:"renault", brand:"Renault", name:"Mégane E-Tech",  color:C.renault, Logo:RenaultLogo},
 };
 
-// ── Seed data (loaded once if DB is empty) ──────────────────────
+// ── Seed data ─────────────────────────────────────────────────────
 const SEED_READINGS = [
   {value:1216.0,date:"2024-04-04",note:"",car:"tesla"},{value:1235.4,date:"2024-04-05",note:"",car:"tesla"},
   {value:1294.1,date:"2024-04-14",note:"",car:"tesla"},{value:1318.8,date:"2024-04-25",note:"",car:"tesla"},
@@ -115,7 +105,7 @@ const SEED_INVOICES = [
    ]},
 ];
 
-// ── Helpers ─────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────
 function today() { return new Date().toISOString().split("T")[0]; }
 function fmtDate(iso) {
   if (!iso) return "—";
@@ -126,8 +116,8 @@ function fmtDateLong(iso) {
   return new Date(iso+"T12:00:00").toLocaleDateString("pt-PT",{day:"2-digit",month:"short",year:"numeric"});
 }
 function fmtMonthLabel(isoMonth) {
-  const [y,m] = isoMonth.split("-");
-  return new Date(parseInt(y), parseInt(m)-1, 15).toLocaleDateString("pt-PT",{month:"short",year:"numeric"});
+  const [y,m]=isoMonth.split("-");
+  return new Date(parseInt(y),parseInt(m)-1,15).toLocaleDateString("pt-PT",{month:"short",year:"numeric"});
 }
 function daysSince(iso) {
   if (!iso) return null;
@@ -157,22 +147,20 @@ function toEur(kwh,rate) {
   return +(kwh*rate).toFixed(2);
 }
 
+// kWh → equivalent fuel cost (7L/100km petrol car, 16kWh/100km EV)
+function kwhToFuelEur(kwh, petrolPrice) {
+  if (!kwh||!petrolPrice) return null;
+  const litres = (kwh / 16) * 7;
+  return +(litres * petrolPrice).toFixed(2);
+}
+
 const PERIOD_FILTERS = [
   {id:"all",label:"Tudo"},{id:"month",label:"1m"},
   {id:"month3",label:"3m"},{id:"year",label:"1a"},
 ];
 
-// ── Monthly chart ────────────────────────────────────────────────
-function MonthlyChart({sessions,invoices,unit,onToggle,selectedMonth,onSelectMonth}) {
-  // Get fallback rate from most recent invoice
-  const fallbackRate = useMemo(()=>{
-    if (!invoices.length) return null;
-    const last=[...invoices].sort((a,b)=>b.periodo_fim.localeCompare(a.periodo_fim))[0];
-    const total=last.tarifas.reduce((s,t)=>s+t.kwh,0);
-    if (!total) return null;
-    return +last.tarifas.reduce((s,t)=>s+(t.kwh/total)*t.preco_kwh*(1+t.iva_pct/100),0).toFixed(6);
-  },[invoices]);
-
+// ── Monthly chart ─────────────────────────────────────────────────
+function MonthlyChart({sessions,invoices,fallbackRate,unit,onToggle,selectedMonth,onSelectMonth}) {
   const months = useMemo(()=>{
     const map={};
     sessions.forEach(s=>{
@@ -181,13 +169,8 @@ function MonthlyChart({sessions,invoices,unit,onToggle,selectedMonth,onSelectMon
       if (!map[k]) map[k]={k,kwh:0,eur:0,hasRate:false,estimated:false};
       map[k].kwh=+(map[k].kwh+s.delta).toFixed(1);
       const rate=rateForDate(s.date,invoices);
-      if (rate){
-        map[k].eur=+(map[k].eur+s.delta*rate).toFixed(2);
-        map[k].hasRate=true;
-      } else if (fallbackRate) {
-        map[k].eur=+(map[k].eur+s.delta*fallbackRate).toFixed(2);
-        map[k].estimated=true;
-      }
+      if (rate){map[k].eur=+(map[k].eur+s.delta*rate).toFixed(2);map[k].hasRate=true;}
+      else if (fallbackRate){map[k].eur=+(map[k].eur+s.delta*fallbackRate).toFixed(2);map[k].estimated=true;}
     });
     return Object.values(map).sort((a,b)=>a.k.localeCompare(b.k)).slice(-12);
   },[sessions,invoices,fallbackRate]);
@@ -195,22 +178,21 @@ function MonthlyChart({sessions,invoices,unit,onToggle,selectedMonth,onSelectMon
   if (!months.length) return null;
   const vals=months.map(m=>unit==="eur"?m.eur:m.kwh);
   const maxV=Math.max(...vals,0.1);
-
-  const selM = selectedMonth || months[months.length-1]?.k;
-  const selData = months.find(m=>m.k===selM);
+  const selM=selectedMonth||months[months.length-1]?.k;
+  const selData=months.find(m=>m.k===selM);
 
   return (
     <div style={{marginBottom:28}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
         <div>
           <span style={{fontSize:9,color:C.textLow,letterSpacing:2,textTransform:"uppercase"}}>
-            {selData ? fmtMonthLabel(selM+"-01") : "Consumo mensal"}
+            {selData?fmtMonthLabel(selM+"-01"):"Consumo mensal"}
           </span>
           {selData&&(
             <span style={{marginLeft:10,fontSize:12,fontWeight:700,color:C.accent}}>
               {unit==="eur"&&selData.eur>0
-                ? `${selData.eur.toFixed(2)} €${selData.estimated&&!selData.hasRate?" *":""}`
-                : `${selData.kwh} kWh`}
+                ?`${selData.eur.toFixed(2)} €${selData.estimated&&!selData.hasRate?" *":""}`
+                :`${selData.kwh} kWh`}
             </span>
           )}
         </div>
@@ -221,21 +203,17 @@ function MonthlyChart({sessions,invoices,unit,onToggle,selectedMonth,onSelectMon
         )}
       </div>
       {unit==="eur"&&selData?.estimated&&!selData?.hasRate&&(
-        <div style={{fontSize:8,color:C.textLow,marginBottom:8,letterSpacing:0.5}}>* estimativa baseada na última tarifa conhecida</div>
+        <div style={{fontSize:8,color:C.textLow,marginBottom:8}}>* estimativa baseada na última tarifa conhecida</div>
       )}
       <div style={{display:"flex",alignItems:"flex-end",gap:3,height:88,padding:"0 2px",marginTop:10}}>
-        {months.map((m)=>{
+        {months.map(m=>{
           const v=unit==="eur"?m.eur:m.kwh;
           const h=Math.max(4,Math.round((v/maxV)*76));
           const isSelected=m.k===selM;
           return (
             <div key={m.k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}
               onClick={()=>onSelectMonth(m.k)}>
-              <div style={{
-                width:"100%",height:h,borderRadius:"4px 4px 0 0",
-                background:isSelected?C.accent:m.estimated&&!m.hasRate?`${C.accent}20`:`${C.accent}35`,
-                transition:"all 0.2s",
-              }}/>
+              <div style={{width:"100%",height:h,borderRadius:"4px 4px 0 0",background:isSelected?C.accent:m.estimated&&!m.hasRate?`${C.accent}18`:`${C.accent}35`,transition:"all 0.2s"}}/>
               <span style={{fontSize:7,color:isSelected?C.textMid:C.textLow,textTransform:"uppercase",letterSpacing:0.3,textAlign:"center",lineHeight:1.2}}>
                 {fmtMonthLabel(m.k+"-01").split(" ")[0]}
               </span>
@@ -247,92 +225,100 @@ function MonthlyChart({sessions,invoices,unit,onToggle,selectedMonth,onSelectMon
   );
 }
 
-// ── Main ─────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────
 export default function App() {
   const [readings,  setReadings]  = useState([]);
   const [invoices,  setInvoices]  = useState([]);
   const [loaded,    setLoaded]    = useState(false);
-  const [tab,       setTab]       = useState("log");
+  const [tab,       setTab]       = useState("home");
   const [unit,      setUnit]      = useState("kwh");
   const [selCar,    setSelCar]    = useState("tesla");
   const [saving,    setSaving]    = useState(false);
   const [toast,     setToast]     = useState(null);
   const [newValue,  setNewValue]  = useState("");
-  const [newNote,   setNewNote]   = useState("");
+  const [showSheet, setShowSheet] = useState(false);
   const [carFilter,    setCarFilter]    = useState("all");
   const [periodFilter, setPeriodFilter] = useState("all");
-  const [selectedMonth, setSelectedMonth] = useState(null);
-  const [invoiceData,   setInvoiceData]   = useState(null);
-  const [billingResult, setBillingResult] = useState(null);
-  const [extracting,    setExtracting]    = useState(false);
-  const [extractError,  setExtractError]  = useState(null);
+  const [selectedMonth,setSelectedMonth]= useState(null);
+  const [invoiceData,  setInvoiceData]  = useState(null);
+  const [billingResult,setBillingResult]= useState(null);
+  const [extracting,   setExtracting]   = useState(false);
+  const [extractError, setExtractError] = useState(null);
+  const [petrolPrice,  setPetrolPrice]  = useState(null);
+  const [petrolUpdated,setPetrolUpdated]= useState(null);
+  const inputRef = useRef(null);
 
-  // ── Load from Supabase ────────────────────────────────────────
+  // ── Load ──────────────────────────────────────────────────────
   useEffect(()=>{
     async function load(){
-      // Load readings
-      const {data:rData} = await supabase
-        .from("readings")
-        .select("*")
-        .order("date",{ascending:true})
-        .order("id",{ascending:true});
-
-      if (rData && rData.length > 0) {
-        setReadings(rData);
-      } else {
-        // First run: seed historical data
-        const {data:seeded} = await supabase
-          .from("readings")
-          .insert(SEED_READINGS)
-          .select();
+      const {data:rData}=await supabase.from("readings").select("*").order("date",{ascending:true}).order("id",{ascending:true});
+      if (rData&&rData.length>0) setReadings(rData);
+      else {
+        const {data:seeded}=await supabase.from("readings").insert(SEED_READINGS).select();
         if (seeded) setReadings(seeded);
       }
-
-      // Load invoices
-      const {data:iData} = await supabase
-        .from("invoices")
-        .select("*")
-        .order("periodo_inicio",{ascending:true});
-
-      if (iData && iData.length > 0) {
-        setInvoices(iData);
-      } else {
-        // First run: seed invoices
-        const {data:seeded} = await supabase
-          .from("invoices")
-          .insert(SEED_INVOICES)
-          .select();
+      const {data:iData}=await supabase.from("invoices").select("*").order("periodo_inicio",{ascending:true});
+      if (iData&&iData.length>0) setInvoices(iData);
+      else {
+        const {data:seeded}=await supabase.from("invoices").insert(SEED_INVOICES).select();
         if (seeded) setInvoices(seeded);
       }
-
-      // Load last used car from localStorage (device preference)
-      const savedCar = localStorage.getItem("ev-last-car");
+      const savedCar=localStorage.getItem("ev-last-car");
       if (savedCar) setSelCar(savedCar);
 
+      // Load petrol price from localStorage cache
+      const cached=localStorage.getItem("petrol-price");
+      const cachedDate=localStorage.getItem("petrol-date");
+      if (cached&&cachedDate) {
+        setPetrolPrice(parseFloat(cached));
+        setPetrolUpdated(cachedDate);
+        // Refresh if older than 7 days
+        const age=(new Date()-new Date(cachedDate))/86400000;
+        if (age>7) fetchPetrolPrice();
+      } else {
+        fetchPetrolPrice();
+      }
       setLoaded(true);
     }
     load();
   },[]);
 
+  async function fetchPetrolPrice(){
+    try {
+      const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:200,
+          tools:[{type:"web_search_20250305",name:"web_search"}],
+          messages:[{role:"user",content:"Qual é o preço médio actual da gasolina 95 em Portugal em euros por litro? Responde APENAS com o número, ex: 1.72"}]})});
+      const data=await resp.json();
+      const text=data.content?.find(b=>b.type==="text")?.text||"";
+      const match=text.match(/(\d+[.,]\d+)/);
+      if (match) {
+        const price=parseFloat(match[1].replace(",","."));
+        setPetrolPrice(price);
+        const d=today();
+        setPetrolUpdated(d);
+        localStorage.setItem("petrol-price",price.toString());
+        localStorage.setItem("petrol-date",d);
+      }
+    } catch {}
+  }
+
   function toast_(m){setToast(m);setTimeout(()=>setToast(null),2200);}
   function pickCar(id){setSelCar(id);localStorage.setItem("ev-last-car",id);}
 
-  // ── Mutations ─────────────────────────────────────────────────
   async function addReading(){
     const val=parseFloat(newValue);
     if(isNaN(val)) return;
     const last=readings[readings.length-1];
     if(last&&val<=last.value){toast_("Valor menor que a leitura anterior");return;}
     setSaving(true);
-    const entry={value:val, date:today(), note:newNote.trim(), car:selCar};
-    const {data,error} = await supabase.from("readings").insert(entry).select().single();
-    if (!error && data) {
+    const {data,error}=await supabase.from("readings").insert({value:val,date:today(),note:"",car:selCar}).select().single();
+    if (!error&&data){
       setReadings(r=>[...r,data]);
-      setNewValue(""); setNewNote("");
+      setNewValue("");
+      setShowSheet(false);
       toast_("Guardado ✓");
-    } else {
-      toast_("Erro ao guardar");
-    }
+    } else toast_("Erro ao guardar");
     setSaving(false);
   }
 
@@ -340,7 +326,6 @@ export default function App() {
     await supabase.from("readings").delete().eq("id",id);
     setReadings(r=>r.filter(x=>x.id!==id));
   }
-
   async function deleteInvoice(id){
     await supabase.from("invoices").delete().eq("id",id);
     setInvoices(i=>i.filter(x=>x.id!==id));
@@ -350,17 +335,14 @@ export default function App() {
     if(!invoiceData) return;
     const exists=invoices.find(i=>i.periodo_inicio===invoiceData.periodo_inicio&&i.periodo_fim===invoiceData.periodo_fim);
     if(exists){toast_("Período já guardado");return;}
-    const {data,error} = await supabase.from("invoices").insert(invoiceData).select().single();
-    if (!error && data) {
+    const {data,error}=await supabase.from("invoices").insert(invoiceData).select().single();
+    if (!error&&data){
       const updated=[...invoices,data].sort((a,b)=>a.periodo_inicio.localeCompare(b.periodo_inicio));
       setInvoices(updated);
       toast_("Fatura guardada ✓");
       setInvoiceData(null);
-      // Auto-calculate billing for this invoice
-      setTimeout(()=>calcBilling(data), 100);
-    } else {
-      toast_("Erro ao guardar fatura");
-    }
+      setTimeout(()=>calcBilling(data),100);
+    } else toast_("Erro ao guardar fatura");
   }
 
   async function extractInvoice(file){
@@ -410,12 +392,12 @@ export default function App() {
   const lastDays=daysSince(last?.date);
   const hasEur=invoices.length>0;
 
-  const fallbackRate = useMemo(()=>{
+  const fallbackRate=useMemo(()=>{
     if (!invoices.length) return null;
-    const last=[...invoices].sort((a,b)=>b.periodo_fim.localeCompare(a.periodo_fim))[0];
-    const total=last.tarifas.reduce((s,t)=>s+t.kwh,0);
+    const inv=[...invoices].sort((a,b)=>b.periodo_fim.localeCompare(a.periodo_fim))[0];
+    const total=inv.tarifas.reduce((s,t)=>s+t.kwh,0);
     if (!total) return null;
-    return +last.tarifas.reduce((s,t)=>s+(t.kwh/total)*t.preco_kwh*(1+t.iva_pct/100),0).toFixed(6);
+    return +inv.tarifas.reduce((s,t)=>s+(t.kwh/total)*t.preco_kwh*(1+t.iva_pct/100),0).toFixed(6);
   },[invoices]);
 
   const sessions=useMemo(()=>rd.filter(r=>r.delta!==null&&r.delta>0).map(s=>{
@@ -439,8 +421,23 @@ export default function App() {
   const totEur=+(tEur+rEur).toFixed(2);
 
   const periodKwh=+filteredSessions.reduce((s,r)=>s+r.delta,0).toFixed(1);
-  const periodEur=+filteredSessions.filter(r=>r.eur!=null).reduce((s,r)=>s+r.eur,0).toFixed(2);
+  const periodEur=+filteredSessions.reduce((s,r)=>s+(r.eur||0),0).toFixed(2);
   const periodSessions=filteredSessions.length;
+
+  // This month stats
+  const thisMonthCut=cutoffFor("month");
+  const thisMonthSessions=sessions.filter(r=>r.date&&r.date>=thisMonthCut);
+  const thisMonthKwh=+thisMonthSessions.reduce((s,r)=>s+r.delta,0).toFixed(1);
+  const thisMonthEur=+thisMonthSessions.reduce((s,r)=>s+(r.eur||0),0).toFixed(2);
+  const thisMonthFuelSaving=petrolPrice?+(kwhToFuelEur(thisMonthKwh,petrolPrice)-thisMonthEur).toFixed(2):null;
+
+  // Year stats
+  const yearCut=cutoffFor("year");
+  const yearSessions=sessions.filter(r=>r.date&&r.date>=yearCut);
+  const yearKwh=+yearSessions.reduce((s,r)=>s+r.delta,0).toFixed(1);
+  const yearEur=+yearSessions.reduce((s,r)=>s+(r.eur||0),0).toFixed(2);
+  const yearFuelEur=petrolPrice?kwhToFuelEur(yearKwh,petrolPrice):null;
+  const yearSaving=yearFuelEur!=null?+(yearFuelEur-yearEur).toFixed(2):null;
 
   const grouped=useMemo(()=>{
     const cut=cutoffFor(periodFilter);
@@ -449,19 +446,27 @@ export default function App() {
     [...base].reverse().forEach(r=>{
       const k=r.date?r.date.slice(0,7):"?";
       if(!map[k])map[k]=[];
-      map[k].push({...r,rate:rateForDate(r.date,invoices),eur:toEur(r.delta,rateForDate(r.date,invoices))});
+      const rate=rateForDate(r.date,invoices)||fallbackRate;
+      const isEst=!rateForDate(r.date,invoices)&&!!fallbackRate;
+      map[k].push({...r,rate,eur:toEur(r.delta,rate),estimated:isEst});
     });
     return Object.entries(map).sort(([a],[b])=>b.localeCompare(a));
-  },[rd,invoices,periodFilter]);
+  },[rd,invoices,periodFilter,fallbackRate]);
 
   const lastInv=[...invoices].sort((a,b)=>b.periodo_fim.localeCompare(a.periodo_fim))[0];
   const lastInvSess=lastInv?sessions.filter(r=>r.date>=lastInv.periodo_inicio&&r.date<=lastInv.periodo_fim):[];
   const lastInvKwh=+lastInvSess.reduce((s,r)=>s+r.delta,0).toFixed(1);
-  const lastInvEur=+lastInvSess.filter(r=>r.eur!=null).reduce((s,r)=>s+r.eur,0).toFixed(2);
+  const lastInvEur=+lastInvSess.reduce((s,r)=>s+(r.eur||0),0).toFixed(2);
 
-  // ── Dynamic header ────────────────────────────────────────────
+  // ── Styles ────────────────────────────────────────────────────
+  const inp={width:"100%",padding:"18px 16px",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:10,color:C.textHi,fontSize:22,fontFamily:"inherit",outline:"none",boxSizing:"border-box",WebkitAppearance:"none"};
+  const pill=(active,col=C.accent)=>({padding:"6px 14px",background:active?col:C.surface,color:active?C.bg:C.textMid,border:`1px solid ${active?col:C.border}`,borderRadius:20,fontSize:10,letterSpacing:1,cursor:"pointer",textTransform:"uppercase",fontFamily:"inherit",fontWeight:active?700:400,flexShrink:0});
+  const card={background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px"};
+  const TABS=[{id:"home",label:"Home",Icon:IconHome},{id:"data",label:"Dados",Icon:IconBarChart},{id:"billing",label:"Fatura",Icon:IconReceipt}];
+
+  // ── Header content per tab ────────────────────────────────────
   const headerContent = {
-    log: (<div style={{textAlign:"center"}}>
+    home: (<div style={{textAlign:"center"}}>
       <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:10}}>Último carregamento</div>
       <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center"}}>
         <span style={{fontSize:52,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1}}>
@@ -476,25 +481,23 @@ export default function App() {
     </div>),
     data: (<div style={{textAlign:"center"}}>
       <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>
-        {selectedMonth ? fmtMonthLabel(selectedMonth+"-01") : periodFilter==="all"?"Total acumulado":periodFilter==="month"?"Último mês":periodFilter==="month3"?"Últimos 3 meses":"Último ano"}
+        {selectedMonth?fmtMonthLabel(selectedMonth+"-01"):periodFilter==="all"?"Total acumulado":periodFilter==="month"?"Último mês":periodFilter==="month3"?"Últimos 3 meses":"Último ano"}
       </div>
       <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center",cursor:hasEur?"pointer":"default",userSelect:"none",WebkitUserSelect:"none"}}
         onClick={()=>hasEur&&setUnit(u=>u==="kwh"?"eur":"kwh")}>
         <span style={{fontSize:44,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1}}>
-          {unit==="eur"&&hasEur?`${periodEur}`:periodKwh}
+          {unit==="eur"?`${periodEur}`:periodKwh}
         </span>
-        <span style={{fontSize:14,color:C.accentDim}}>{unit==="eur"&&hasEur?"€":"kWh"}</span>
+        <span style={{fontSize:14,color:C.accentDim}}>{unit==="eur"?"€":"kWh"}</span>
       </div>
       <div style={{fontSize:11,color:C.textMid,marginTop:6}}>
-        {selectedMonth ? "" : `${periodSessions} carregamentos`}
-        {!selectedMonth&&unit==="kwh"&&hasEur&&periodEur>0&&<span style={{marginLeft:10,color:C.textLow}}>≈ {periodEur} €</span>}
+        {!selectedMonth&&`${periodSessions} carregamentos`}
+        {!selectedMonth&&unit==="kwh"&&periodEur>0&&<span style={{marginLeft:10,color:C.textLow}}>≈ {periodEur} €</span>}
         {!selectedMonth&&unit==="eur"&&<span style={{marginLeft:10,color:C.textLow}}>{periodKwh} kWh</span>}
       </div>
     </div>),
-    billing: lastInv ? (<div style={{textAlign:"center"}}>
-      <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>
-        Última fatura · {lastInv.label}
-      </div>
+    billing: lastInv?(<div style={{textAlign:"center"}}>
+      <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>Última fatura · {lastInv.label}</div>
       <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center"}}>
         <span style={{fontSize:44,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1}}>{lastInvEur}</span>
         <span style={{fontSize:14,color:C.accentDim}}>€</span>
@@ -502,17 +505,11 @@ export default function App() {
       <div style={{fontSize:11,color:C.textMid,marginTop:6}}>
         {lastInvKwh} kWh · {fmtDate(lastInv.periodo_inicio)} → {fmtDate(lastInv.periodo_fim)}
       </div>
-    </div>) : (<div style={{textAlign:"center"}}>
+    </div>):(<div style={{textAlign:"center"}}>
       <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>Faturas</div>
       <div style={{fontSize:16,color:C.textMid,marginTop:6}}>Sem faturas guardadas</div>
     </div>),
   };
-
-  // ── Styles ────────────────────────────────────────────────────
-  const inp={width:"100%",padding:"18px 16px",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:10,color:C.textHi,fontSize:22,fontFamily:"inherit",outline:"none",boxSizing:"border-box",WebkitAppearance:"none"};
-  const pill=(active,col=C.accent)=>({padding:"6px 14px",background:active?col:C.surface,color:active?C.bg:C.textMid,border:`1px solid ${active?col:C.border}`,borderRadius:20,fontSize:10,letterSpacing:1,cursor:"pointer",textTransform:"uppercase",fontFamily:"inherit",fontWeight:active?700:400,flexShrink:0});
-  const card={background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px"};
-  const TABS=[{id:"log",label:"Leitura",Icon:IconBolt},{id:"data",label:"Dados",Icon:IconBarChart},{id:"billing",label:"Fatura",Icon:IconReceipt}];
 
   if (!loaded) return (
     <div style={{background:C.bg,minHeight:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Mono',monospace"}}>
@@ -529,34 +526,45 @@ export default function App() {
         {headerContent[tab]}
       </div>
 
-      {/* LOG */}
-      {tab==="log"&&(
+      {/* ══ HOME ═════════════════════════════════════════════════ */}
+      {tab==="home"&&(
         <div style={{padding:"24px 20px"}}>
+
+          {/* Car selector */}
           <div style={{display:"flex",gap:10,marginBottom:24}}>
             {Object.values(CARS).map(car=>{
               const active=selCar===car.id;
               return (
-                <button key={car.id} onClick={()=>pickCar(car.id)} style={{flex:1,padding:"12px 14px",background:active?`${car.color}10`:C.surface,border:`1.5px solid ${active?car.color:C.border}`,borderRadius:10,cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all 0.15s"}}>
-                  <car.Logo size={28} color={active?car.color:C.textLow}/>
+                <button key={car.id} onClick={()=>pickCar(car.id)} style={{
+                  flex:1,padding:"16px 14px",
+                  background:active?`${car.color}10`:C.surface,
+                  border:`1.5px solid ${active?car.color:C.border}`,
+                  borderRadius:12,cursor:"pointer",
+                  display:"flex",alignItems:"center",gap:14,
+                  transition:"all 0.15s",
+                }}>
+                  <car.Logo size={32} color={active?car.color:C.textLow}/>
                   <div>
-                    <div style={{fontSize:11,letterSpacing:1,color:active?car.color:C.textMid,textTransform:"uppercase",fontFamily:"inherit",fontWeight:active?700:400}}>{car.brand}</div>
-                    <div style={{fontSize:9,color:active?car.color+"66":C.textLow,fontFamily:"inherit",marginTop:2}}>{car.name}</div>
+                    <div style={{fontSize:12,letterSpacing:1,color:active?car.color:C.textMid,textTransform:"uppercase",fontFamily:"inherit",fontWeight:active?700:400}}>{car.brand}</div>
+                    <div style={{fontSize:9,color:active?car.color+"66":C.textLow,fontFamily:"inherit",marginTop:3}}>{car.name}</div>
                   </div>
                 </button>
               );
             })}
           </div>
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:9,letterSpacing:2.5,color:C.textMid,textTransform:"uppercase",marginBottom:8}}>Leitura do contador (kWh)</div>
-            <input type="number" inputMode="decimal" value={newValue} onChange={e=>setNewValue(e.target.value)}
-              placeholder={last?`> ${last.value}`:"0.0"} style={inp}
-              onKeyDown={e=>e.key==="Enter"&&addReading()} autoFocus/>
-          </div>
-          <button onClick={addReading} disabled={!newValue||saving} style={{width:"100%",padding:"18px",background:newValue?C.accent:C.surfaceHi,color:newValue?C.bg:C.textLow,border:"none",borderRadius:12,fontSize:13,fontWeight:700,letterSpacing:2,textTransform:"uppercase",cursor:newValue?"pointer":"not-allowed",fontFamily:"inherit"}}>
-            {saving?"A guardar…":"Guardar Leitura"}
-          </button>
+
+          {/* Register button */}
+          <button onClick={()=>{setShowSheet(true);setTimeout(()=>inputRef.current?.focus(),100);}} style={{
+            width:"100%",padding:"18px",
+            background:C.accent,color:C.bg,
+            border:"none",borderRadius:12,fontSize:13,fontWeight:700,
+            letterSpacing:2,textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit",
+            marginBottom:20,
+          }}>Registar Leitura</button>
+
+          {/* Counter card */}
           {last&&(
-            <div style={{...card,marginTop:20,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{...card,display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <div>
                 <div style={{fontSize:9,color:C.textLow,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Contador</div>
                 <div style={{fontSize:11,color:C.textMid}}>{fmtDateLong(last.date)}</div>
@@ -567,10 +575,55 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {/* Stats grid */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+            <div style={card}>
+              <div style={{fontSize:9,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Este mês</div>
+              <div style={{fontSize:22,fontWeight:700,color:C.textHi,lineHeight:1}}>{thisMonthKwh}</div>
+              <div style={{fontSize:9,color:C.textMid,marginTop:3}}>kWh</div>
+              {thisMonthEur>0&&<div style={{fontSize:11,color:C.accentDim,marginTop:6}}>{thisMonthEur} €</div>}
+            </div>
+            <div style={card}>
+              <div style={{fontSize:9,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Último ano</div>
+              <div style={{fontSize:22,fontWeight:700,color:C.textHi,lineHeight:1}}>{yearKwh}</div>
+              <div style={{fontSize:9,color:C.textMid,marginTop:3}}>kWh</div>
+              {yearEur>0&&<div style={{fontSize:11,color:C.accentDim,marginTop:6}}>{yearEur} €</div>}
+            </div>
+          </div>
+
+          {/* Fuel saving card */}
+          {petrolPrice&&(thisMonthFuelSaving!=null||yearSaving!=null)&&(
+            <div style={{...card,borderLeft:`3px solid ${C.accentDim}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                <div style={{fontSize:9,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase"}}>Poupança vs gasolina</div>
+                <div style={{fontSize:8,color:C.textLow}}>{petrolPrice?.toFixed(3)} €/L · {petrolUpdated&&fmtDate(petrolUpdated)}</div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                {thisMonthFuelSaving!=null&&(
+                  <div>
+                    <div style={{fontSize:9,color:C.textLow,marginBottom:4}}>Este mês</div>
+                    <div style={{fontSize:20,fontWeight:700,color:thisMonthFuelSaving>0?C.accent:C.danger}}>
+                      {thisMonthFuelSaving>0?"+":""}{thisMonthFuelSaving} €
+                    </div>
+                  </div>
+                )}
+                {yearSaving!=null&&(
+                  <div>
+                    <div style={{fontSize:9,color:C.textLow,marginBottom:4}}>Último ano</div>
+                    <div style={{fontSize:20,fontWeight:700,color:yearSaving>0?C.accent:C.danger}}>
+                      {yearSaving>0?"+":""}{yearSaving} €
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{fontSize:8,color:C.textLow,marginTop:8}}>vs carro a gasolina equivalente (7L/100km)</div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* DATA */}
+      {/* ══ DATA ════════════════════════════════════════════════ */}
       {tab==="data"&&(
         <div style={{padding:"20px 20px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24,gap:8}}>
@@ -581,7 +634,7 @@ export default function App() {
             </div>
             <div style={{display:"flex",gap:4}}>
               {PERIOD_FILTERS.map(f=>(
-                <button key={f.id} onClick={()=>setPeriodFilter(f.id)} style={{
+                <button key={f.id} onClick={()=>{setPeriodFilter(f.id);setSelectedMonth(null);}} style={{
                   padding:"5px 10px",background:periodFilter===f.id?C.surfaceHi:"none",
                   color:periodFilter===f.id?C.textHi:C.textLow,
                   border:`1px solid ${periodFilter===f.id?C.border:"transparent"}`,
@@ -591,7 +644,11 @@ export default function App() {
               ))}
             </div>
           </div>
-          <MonthlyChart sessions={filteredSessions} invoices={invoices} unit={unit} onToggle={()=>setUnit(u=>u==="kwh"?"eur":"kwh")} selectedMonth={selectedMonth} onSelectMonth={setSelectedMonth}/>
+
+          <MonthlyChart sessions={filteredSessions} invoices={invoices} fallbackRate={fallbackRate} unit={unit}
+            onToggle={()=>setUnit(u=>u==="kwh"?"eur":"kwh")}
+            selectedMonth={selectedMonth} onSelectMonth={setSelectedMonth}/>
+
           {carFilter==="all"&&(
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:28}}>
               {Object.values(CARS).map(car=>{
@@ -599,10 +656,10 @@ export default function App() {
                 const eur=car.id==="tesla"?tEur:rEur;
                 const pct=totKwh>0?Math.round((kwh/totKwh)*100):0;
                 const cnt=sessions.filter(r=>r.car===car.id).length;
-                const showEur=unit==="eur"&&hasEur;
+                const showEur=unit==="eur";
                 return (
-                  <div key={car.id} style={{...card,borderTop:`2px solid ${car.color}`,cursor:hasEur?"pointer":"default"}}
-                    onClick={()=>hasEur&&setUnit(u=>u==="kwh"?"eur":"kwh")}>
+                  <div key={car.id} style={{...card,borderTop:`2px solid ${car.color}`,cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}
+                    onClick={()=>setUnit(u=>u==="kwh"?"eur":"kwh")}>
                     <div style={{marginBottom:10,display:"flex",justifyContent:"center"}}><car.Logo size={32} color={car.color}/></div>
                     <div style={{fontSize:9,color:C.textMid,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>{car.brand}</div>
                     <div style={{fontSize:24,fontWeight:700,color:car.color,lineHeight:1}}>{showEur?eur.toFixed(2):kwh.toFixed(1)}</div>
@@ -617,19 +674,20 @@ export default function App() {
               })}
             </div>
           )}
+
           {grouped.map(([monthKey,rows])=>{
             const ms=rows.filter(r=>r.delta&&r.delta>0);
             const mKwh=+ms.reduce((s,r)=>s+r.delta,0).toFixed(1);
-            const mEur=+ms.filter(r=>r.eur!=null).reduce((s,r)=>s+r.eur,0).toFixed(2);
+            const mEur=+ms.reduce((s,r)=>s+(r.eur||0),0).toFixed(2);
             const filtRows=carFilter==="all"?rows:rows.filter(r=>r.car===carFilter);
             if(!filtRows.length) return null;
             return (
               <div key={monthKey} style={{marginBottom:24}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
                   <span style={{fontSize:9,color:C.textMid,letterSpacing:2,textTransform:"uppercase"}}>{fmtMonthLabel(monthKey+"-01")}</span>
-                  <span style={{fontSize:11,color:C.textMid,fontWeight:600,cursor:hasEur?"pointer":"default"}}
-                    onClick={()=>hasEur&&setUnit(u=>u==="kwh"?"eur":"kwh")}>
-                    {unit==="eur"&&hasEur&&mEur>0?`${mEur} €`:`${mKwh} kWh`}
+                  <span style={{fontSize:11,color:C.textMid,fontWeight:600,cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}
+                    onClick={()=>setUnit(u=>u==="kwh"?"eur":"kwh")}>
+                    {unit==="eur"&&mEur>0?`${mEur} €`:mKwh>0?`${mKwh} kWh`:"—"}
                   </span>
                 </div>
                 {filtRows.map(r=>(
@@ -644,15 +702,14 @@ export default function App() {
                         <div style={{fontSize:10,color:C.textMid,marginTop:2,display:"flex",gap:8}}>
                           <span>{fmtDate(r.date)}</span>
                           {r.car&&<span style={{color:(CARS[r.car]?.color||C.textLow)+"99"}}>{CARS[r.car]?.brand}</span>}
-                          {r.note&&<span style={{color:C.textLow}}>{r.note}</span>}
                         </div>
                       </div>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       {r.delta!=null&&r.delta>0&&(
-                        <div onClick={()=>hasEur&&setUnit(u=>u==="kwh"?"eur":"kwh")} style={{cursor:hasEur?"pointer":"default",userSelect:"none",WebkitUserSelect:"none"}}>
-                          <div style={{fontSize:12,fontWeight:600,color:unit==="eur"&&r.eur!=null?r.estimated?C.textLow:C.accentDim:C.accent}}>
-                            {unit==="eur"&&hasEur?(r.eur!=null?`${r.eur} €${r.estimated?" *":""}` :"—"):`+${r.delta} kWh`}
+                        <div onClick={()=>setUnit(u=>u==="kwh"?"eur":"kwh")} style={{cursor:"pointer",userSelect:"none",WebkitUserSelect:"none",textAlign:"right"}}>
+                          <div style={{fontSize:12,fontWeight:600,color:unit==="eur"&&r.eur!=null?r.estimated?C.textMid:C.accentDim:C.accent}}>
+                            {unit==="eur"?(r.eur!=null?`${r.eur} €${r.estimated?" *":""}` :"—"):`+${r.delta} kWh`}
                           </div>
                         </div>
                       )}
@@ -666,7 +723,7 @@ export default function App() {
         </div>
       )}
 
-      {/* BILLING */}
+      {/* ══ BILLING ════════════════════════════════════════════ */}
       {tab==="billing"&&(
         <div style={{padding:"24px 20px"}}>
           <div style={{marginBottom:32}}>
@@ -676,7 +733,7 @@ export default function App() {
             {invoices.slice().reverse().map(inv=>{
               const invSess=sessions.filter(r=>r.date>=inv.periodo_inicio&&r.date<=inv.periodo_fim);
               const invKwh=+invSess.reduce((s,r)=>s+r.delta,0).toFixed(1);
-              const invEur=+invSess.filter(r=>r.eur!=null).reduce((s,r)=>s+r.eur,0).toFixed(2);
+              const invEur=+invSess.reduce((s,r)=>s+(r.eur||0),0).toFixed(2);
               const isResult=billingResult?.label===inv.label;
               return (
                 <div key={inv.id} style={{...card,marginBottom:10,border:`1px solid ${isResult?C.accentDim:C.border}`}}>
@@ -692,7 +749,7 @@ export default function App() {
                     <div><div style={{fontSize:8,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>Estimado</div><div style={{fontSize:14,fontWeight:700,color:C.accent}}>{invEur} €</div></div>
                     <div><div style={{fontSize:8,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>Tarifa</div><div style={{fontSize:11,color:C.textMid}}>{inv.tarifas?.[0]?.preco_kwh.toFixed(4)} €</div></div>
                   </div>
-                  <button onClick={()=>calcBilling(inv)} style={{width:"100%",padding:"8px",background:"none",color:C.textLow,border:`1px solid ${C.border}`,borderRadius:6,fontSize:9,fontWeight:400,letterSpacing:2,textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit"}}>
+                  <button onClick={()=>calcBilling(inv)} style={{width:"100%",padding:"8px",background:"none",color:C.textLow,border:`1px solid ${C.border}`,borderRadius:6,fontSize:9,letterSpacing:2,textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit"}}>
                     ver débito detalhado
                   </button>
                 </div>
@@ -762,6 +819,33 @@ export default function App() {
           );
         })}
       </div>
+
+      {/* READING SHEET */}
+      {showSheet&&(
+        <>
+          <div onClick={()=>setShowSheet(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:30}}/>
+          <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:C.surface,borderRadius:"20px 20px 0 0",padding:"24px 20px 40px",zIndex:40,borderTop:`1px solid ${C.border}`}}>
+            <div style={{width:40,height:4,background:C.border,borderRadius:2,margin:"0 auto 24px"}}/>
+            <div style={{fontSize:9,color:C.textMid,letterSpacing:2.5,textTransform:"uppercase",marginBottom:16,textAlign:"center"}}>
+              {CARS[selCar]?.brand} · {CARS[selCar]?.name}
+            </div>
+            <input ref={inputRef} type="number" inputMode="decimal" value={newValue}
+              onChange={e=>setNewValue(e.target.value)}
+              placeholder={last?`> ${last.value}`:"0.0"}
+              style={inp} onKeyDown={e=>e.key==="Enter"&&addReading()}/>
+            <button onClick={addReading} disabled={!newValue||saving} style={{
+              width:"100%",padding:"18px",marginTop:12,
+              background:newValue?C.accent:C.surfaceHi,
+              color:newValue?C.bg:C.textLow,
+              border:"none",borderRadius:12,fontSize:13,fontWeight:700,
+              letterSpacing:2,textTransform:"uppercase",
+              cursor:newValue?"pointer":"not-allowed",fontFamily:"inherit",
+            }}>
+              {saving?"A guardar…":"Guardar"}
+            </button>
+          </div>
+        </>
+      )}
 
       {toast&&<div style={{position:"fixed",bottom:88,left:"50%",transform:"translateX(-50%)",background:C.accent,color:C.bg,padding:"10px 24px",borderRadius:40,fontSize:11,fontWeight:700,letterSpacing:1,zIndex:100,whiteSpace:"nowrap"}}>{toast}</div>}
     </div>

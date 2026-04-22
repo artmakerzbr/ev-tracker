@@ -163,43 +163,80 @@ const PERIOD_FILTERS = [
 ];
 
 // ── Monthly chart ────────────────────────────────────────────────
-function MonthlyChart({sessions,invoices,unit,onToggle}) {
+function MonthlyChart({sessions,invoices,unit,onToggle,selectedMonth,onSelectMonth}) {
+  // Get fallback rate from most recent invoice
+  const fallbackRate = useMemo(()=>{
+    if (!invoices.length) return null;
+    const last=[...invoices].sort((a,b)=>b.periodo_fim.localeCompare(a.periodo_fim))[0];
+    const total=last.tarifas.reduce((s,t)=>s+t.kwh,0);
+    if (!total) return null;
+    return +last.tarifas.reduce((s,t)=>s+(t.kwh/total)*t.preco_kwh*(1+t.iva_pct/100),0).toFixed(6);
+  },[invoices]);
+
   const months = useMemo(()=>{
     const map={};
     sessions.forEach(s=>{
       if (!s.delta||s.delta<=0) return;
       const k=s.date.slice(0,7);
-      if (!map[k]) map[k]={k,kwh:0,eur:0,hasRate:false};
+      if (!map[k]) map[k]={k,kwh:0,eur:0,hasRate:false,estimated:false};
       map[k].kwh=+(map[k].kwh+s.delta).toFixed(1);
       const rate=rateForDate(s.date,invoices);
-      if (rate){map[k].eur=+(map[k].eur+s.delta*rate).toFixed(2);map[k].hasRate=true;}
+      if (rate){
+        map[k].eur=+(map[k].eur+s.delta*rate).toFixed(2);
+        map[k].hasRate=true;
+      } else if (fallbackRate) {
+        map[k].eur=+(map[k].eur+s.delta*fallbackRate).toFixed(2);
+        map[k].estimated=true;
+      }
     });
     return Object.values(map).sort((a,b)=>a.k.localeCompare(b.k)).slice(-12);
-  },[sessions,invoices]);
+  },[sessions,invoices,fallbackRate]);
 
   if (!months.length) return null;
-  const vals=months.map(m=>unit==="eur"&&m.hasRate?m.eur:m.kwh);
+  const vals=months.map(m=>unit==="eur"?m.eur:m.kwh);
   const maxV=Math.max(...vals,0.1);
+
+  const selM = selectedMonth || months[months.length-1]?.k;
+  const selData = months.find(m=>m.k===selM);
 
   return (
     <div style={{marginBottom:28}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-        <span style={{fontSize:9,color:C.textLow,letterSpacing:2,textTransform:"uppercase"}}>Consumo mensal</span>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <div>
+          <span style={{fontSize:9,color:C.textLow,letterSpacing:2,textTransform:"uppercase"}}>
+            {selData ? fmtMonthLabel(selM+"-01") : "Consumo mensal"}
+          </span>
+          {selData&&(
+            <span style={{marginLeft:10,fontSize:12,fontWeight:700,color:C.accent}}>
+              {unit==="eur"&&selData.eur>0
+                ? `${selData.eur.toFixed(2)} €${selData.estimated&&!selData.hasRate?" *":""}`
+                : `${selData.kwh} kWh`}
+            </span>
+          )}
+        </div>
         {invoices.length>0&&(
           <button onClick={onToggle} style={{fontSize:9,color:C.textMid,background:"none",border:`1px solid ${C.border}`,borderRadius:12,padding:"3px 10px",cursor:"pointer",fontFamily:"inherit",letterSpacing:1}}>
             {unit==="kwh"?"ver em €":"ver em kWh"}
           </button>
         )}
       </div>
-      <div style={{display:"flex",alignItems:"flex-end",gap:3,height:88,padding:"0 2px"}}>
-        {months.map((m,i)=>{
-          const v=unit==="eur"&&m.hasRate?m.eur:m.kwh;
+      {unit==="eur"&&selData?.estimated&&!selData?.hasRate&&(
+        <div style={{fontSize:8,color:C.textLow,marginBottom:8,letterSpacing:0.5}}>* estimativa baseada na última tarifa conhecida</div>
+      )}
+      <div style={{display:"flex",alignItems:"flex-end",gap:3,height:88,padding:"0 2px",marginTop:10}}>
+        {months.map((m)=>{
+          const v=unit==="eur"?m.eur:m.kwh;
           const h=Math.max(4,Math.round((v/maxV)*76));
-          const isLast=i===months.length-1;
+          const isSelected=m.k===selM;
           return (
-            <div key={m.k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
-              <div style={{width:"100%",height:h,borderRadius:"4px 4px 0 0",background:isLast?C.accent:`${C.accent}35`,transition:"height 0.3s ease"}}/>
-              <span style={{fontSize:7,color:isLast?C.textMid:C.textLow,textTransform:"uppercase",letterSpacing:0.3,textAlign:"center",lineHeight:1.2}}>
+            <div key={m.k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}
+              onClick={()=>onSelectMonth(m.k)}>
+              <div style={{
+                width:"100%",height:h,borderRadius:"4px 4px 0 0",
+                background:isSelected?C.accent:m.estimated&&!m.hasRate?`${C.accent}20`:`${C.accent}35`,
+                transition:"all 0.2s",
+              }}/>
+              <span style={{fontSize:7,color:isSelected?C.textMid:C.textLow,textTransform:"uppercase",letterSpacing:0.3,textAlign:"center",lineHeight:1.2}}>
                 {fmtMonthLabel(m.k+"-01").split(" ")[0]}
               </span>
             </div>
@@ -224,6 +261,7 @@ export default function App() {
   const [newNote,   setNewNote]   = useState("");
   const [carFilter,    setCarFilter]    = useState("all");
   const [periodFilter, setPeriodFilter] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState(null);
   const [invoiceData,   setInvoiceData]   = useState(null);
   const [billingResult, setBillingResult] = useState(null);
   const [extracting,    setExtracting]    = useState(false);
@@ -314,9 +352,12 @@ export default function App() {
     if(exists){toast_("Período já guardado");return;}
     const {data,error} = await supabase.from("invoices").insert(invoiceData).select().single();
     if (!error && data) {
-      setInvoices(i=>[...i,data].sort((a,b)=>a.periodo_inicio.localeCompare(b.periodo_inicio)));
+      const updated=[...invoices,data].sort((a,b)=>a.periodo_inicio.localeCompare(b.periodo_inicio));
+      setInvoices(updated);
       toast_("Fatura guardada ✓");
       setInvoiceData(null);
+      // Auto-calculate billing for this invoice
+      setTimeout(()=>calcBilling(data), 100);
     } else {
       toast_("Erro ao guardar fatura");
     }
@@ -369,9 +410,19 @@ export default function App() {
   const lastDays=daysSince(last?.date);
   const hasEur=invoices.length>0;
 
-  const sessions=useMemo(()=>rd.filter(r=>r.delta!==null&&r.delta>0).map(s=>({
-    ...s,rate:rateForDate(s.date,invoices),eur:toEur(s.delta,rateForDate(s.date,invoices))
-  })),[rd,invoices]);
+  const fallbackRate = useMemo(()=>{
+    if (!invoices.length) return null;
+    const last=[...invoices].sort((a,b)=>b.periodo_fim.localeCompare(a.periodo_fim))[0];
+    const total=last.tarifas.reduce((s,t)=>s+t.kwh,0);
+    if (!total) return null;
+    return +last.tarifas.reduce((s,t)=>s+(t.kwh/total)*t.preco_kwh*(1+t.iva_pct/100),0).toFixed(6);
+  },[invoices]);
+
+  const sessions=useMemo(()=>rd.filter(r=>r.delta!==null&&r.delta>0).map(s=>{
+    const rate=rateForDate(s.date,invoices)||fallbackRate;
+    const isEstimated=!rateForDate(s.date,invoices)&&!!fallbackRate;
+    return {...s,rate,eur:toEur(s.delta,rate),estimated:isEstimated};
+  }),[rd,invoices,fallbackRate]);
 
   const filteredSessions=useMemo(()=>{
     let s=carFilter==="all"?sessions:sessions.filter(r=>r.car===carFilter);
@@ -423,11 +474,11 @@ export default function App() {
         {last?.car&&<span style={{marginLeft:6,color:CARS[last.car]?.color}}>· {CARS[last.car]?.brand}</span>}
       </div>
     </div>),
-    data: (<>
+    data: (<div style={{textAlign:"center"}}>
       <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>
-        {periodFilter==="all"?"Total acumulado":periodFilter==="month"?"Último mês":periodFilter==="month3"?"Últimos 3 meses":"Último ano"}
+        {selectedMonth ? fmtMonthLabel(selectedMonth+"-01") : periodFilter==="all"?"Total acumulado":periodFilter==="month"?"Último mês":periodFilter==="month3"?"Últimos 3 meses":"Último ano"}
       </div>
-      <div style={{display:"flex",alignItems:"baseline",gap:8,cursor:hasEur?"pointer":"default"}}
+      <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center",cursor:hasEur?"pointer":"default",userSelect:"none",WebkitUserSelect:"none"}}
         onClick={()=>hasEur&&setUnit(u=>u==="kwh"?"eur":"kwh")}>
         <span style={{fontSize:44,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1}}>
           {unit==="eur"&&hasEur?`${periodEur}`:periodKwh}
@@ -435,26 +486,26 @@ export default function App() {
         <span style={{fontSize:14,color:C.accentDim}}>{unit==="eur"&&hasEur?"€":"kWh"}</span>
       </div>
       <div style={{fontSize:11,color:C.textMid,marginTop:6}}>
-        {periodSessions} carregamentos
-        {unit==="kwh"&&hasEur&&periodEur>0&&<span style={{marginLeft:10,color:C.textLow}}>≈ {periodEur} €</span>}
-        {unit==="eur"&&<span style={{marginLeft:10,color:C.textLow}}>{periodKwh} kWh</span>}
+        {selectedMonth ? "" : `${periodSessions} carregamentos`}
+        {!selectedMonth&&unit==="kwh"&&hasEur&&periodEur>0&&<span style={{marginLeft:10,color:C.textLow}}>≈ {periodEur} €</span>}
+        {!selectedMonth&&unit==="eur"&&<span style={{marginLeft:10,color:C.textLow}}>{periodKwh} kWh</span>}
       </div>
-    </>),
-    billing: lastInv ? (<>
+    </div>),
+    billing: lastInv ? (<div style={{textAlign:"center"}}>
       <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>
         Última fatura · {lastInv.label}
       </div>
-      <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+      <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center"}}>
         <span style={{fontSize:44,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1}}>{lastInvEur}</span>
         <span style={{fontSize:14,color:C.accentDim}}>€</span>
       </div>
       <div style={{fontSize:11,color:C.textMid,marginTop:6}}>
         {lastInvKwh} kWh · {fmtDate(lastInv.periodo_inicio)} → {fmtDate(lastInv.periodo_fim)}
       </div>
-    </>) : (<>
+    </div>) : (<div style={{textAlign:"center"}}>
       <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>Faturas</div>
       <div style={{fontSize:16,color:C.textMid,marginTop:6}}>Sem faturas guardadas</div>
-    </>),
+    </div>),
   };
 
   // ── Styles ────────────────────────────────────────────────────
@@ -473,7 +524,7 @@ export default function App() {
     <div style={{fontFamily:"'IBM Plex Mono',monospace",background:C.bg,minHeight:"100dvh",color:C.textHi,maxWidth:480,margin:"0 auto",paddingBottom:80}}>
 
       {/* HEADER */}
-      <div style={{padding:"32px 20px 24px",borderBottom:`1px solid ${C.border}`}}>
+      <div style={{padding:"32px 20px 24px",borderBottom:`1px solid ${C.border}`,textAlign:"center"}}>
         <div style={{fontSize:10,color:C.textLow,letterSpacing:3,textTransform:"uppercase",marginBottom:20}}>Garagem · EV Tracker</div>
         {headerContent[tab]}
       </div>
@@ -540,7 +591,7 @@ export default function App() {
               ))}
             </div>
           </div>
-          <MonthlyChart sessions={filteredSessions} invoices={invoices} unit={unit} onToggle={()=>setUnit(u=>u==="kwh"?"eur":"kwh")}/>
+          <MonthlyChart sessions={filteredSessions} invoices={invoices} unit={unit} onToggle={()=>setUnit(u=>u==="kwh"?"eur":"kwh")} selectedMonth={selectedMonth} onSelectMonth={setSelectedMonth}/>
           {carFilter==="all"&&(
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:28}}>
               {Object.values(CARS).map(car=>{
@@ -599,9 +650,9 @@ export default function App() {
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       {r.delta!=null&&r.delta>0&&(
-                        <div onClick={()=>hasEur&&setUnit(u=>u==="kwh"?"eur":"kwh")} style={{cursor:hasEur?"pointer":"default"}}>
-                          <div style={{fontSize:12,fontWeight:600,color:unit==="eur"&&r.eur!=null?C.accentDim:C.accent}}>
-                            {unit==="eur"&&hasEur?(r.eur!=null?`${r.eur} €`:"—"):`+${r.delta} kWh`}
+                        <div onClick={()=>hasEur&&setUnit(u=>u==="kwh"?"eur":"kwh")} style={{cursor:hasEur?"pointer":"default",userSelect:"none",WebkitUserSelect:"none"}}>
+                          <div style={{fontSize:12,fontWeight:600,color:unit==="eur"&&r.eur!=null?r.estimated?C.textLow:C.accentDim:C.accent}}>
+                            {unit==="eur"&&hasEur?(r.eur!=null?`${r.eur} €${r.estimated?" *":""}` :"—"):`+${r.delta} kWh`}
                           </div>
                         </div>
                       )}
@@ -636,13 +687,13 @@ export default function App() {
                     </div>
                     <button onClick={()=>deleteInvoice(inv.id)} style={{background:"none",border:"none",color:C.textLow,cursor:"pointer",fontSize:16,padding:"0 0 0 12px",lineHeight:1}}>×</button>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
                     <div><div style={{fontSize:8,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>Consumo</div><div style={{fontSize:14,fontWeight:600,color:C.textMid}}>{invKwh} kWh</div></div>
                     <div><div style={{fontSize:8,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>Estimado</div><div style={{fontSize:14,fontWeight:700,color:C.accent}}>{invEur} €</div></div>
                     <div><div style={{fontSize:8,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>Tarifa</div><div style={{fontSize:11,color:C.textMid}}>{inv.tarifas?.[0]?.preco_kwh.toFixed(4)} €</div></div>
                   </div>
-                  <button onClick={()=>calcBilling(inv)} style={{width:"100%",padding:"10px",background:C.accentFaint,color:C.accent,border:`1px solid ${C.border}`,borderRadius:8,fontSize:10,fontWeight:700,letterSpacing:2,textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit"}}>
-                    Calcular débito
+                  <button onClick={()=>calcBilling(inv)} style={{width:"100%",padding:"8px",background:"none",color:C.textLow,border:`1px solid ${C.border}`,borderRadius:6,fontSize:9,fontWeight:400,letterSpacing:2,textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit"}}>
+                    ver débito detalhado
                   </button>
                 </div>
               );

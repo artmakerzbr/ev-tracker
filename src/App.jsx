@@ -126,7 +126,8 @@ function fmtDateLong(iso) {
   return new Date(iso+"T12:00:00").toLocaleDateString("pt-PT",{day:"2-digit",month:"short",year:"numeric"});
 }
 function fmtMonthLabel(isoMonth) {
-  return new Date(isoMonth+"-01T12:00:00").toLocaleDateString("pt-PT",{month:"short",year:"numeric"});
+  const [y,m] = isoMonth.split("-");
+  return new Date(parseInt(y), parseInt(m)-1, 15).toLocaleDateString("pt-PT",{month:"short",year:"numeric"});
 }
 function daysSince(iso) {
   if (!iso) return null;
@@ -409,19 +410,19 @@ export default function App() {
 
   // ── Dynamic header ────────────────────────────────────────────
   const headerContent = {
-    log: (<>
-      <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>Último carregamento</div>
-      <div style={{display:"flex",alignItems:"baseline",gap:8}}>
-        <span style={{fontSize:44,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1}}>
+    log: (<div style={{textAlign:"center"}}>
+      <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:10}}>Último carregamento</div>
+      <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center"}}>
+        <span style={{fontSize:52,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1}}>
           {loaded&&lastDelta!=null?`+${lastDelta}`:"—"}
         </span>
-        <span style={{fontSize:14,color:C.accentDim}}>kWh</span>
+        <span style={{fontSize:16,color:C.accentDim}}>kWh</span>
       </div>
-      <div style={{fontSize:11,color:C.textMid,marginTop:6}}>
+      <div style={{fontSize:11,color:C.textMid,marginTop:8}}>
         {lastDays===0?"Hoje":lastDays===1?"Ontem":lastDays!=null?`Há ${lastDays} dias`:"Sem leituras"}
-        {last?.car&&<span style={{marginLeft:10,color:CARS[last.car]?.color,fontSize:10}}>{CARS[last.car]?.brand}</span>}
+        {last?.car&&<span style={{marginLeft:6,color:CARS[last.car]?.color}}>· {CARS[last.car]?.brand}</span>}
       </div>
-    </>),
+    </div>),
     data: (<>
       <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>
         {periodFilter==="all"?"Total acumulado":periodFilter==="month"?"Último mês":periodFilter==="month3"?"Últimos 3 meses":"Último ano"}
@@ -500,22 +501,17 @@ export default function App() {
               placeholder={last?`> ${last.value}`:"0.0"} style={inp}
               onKeyDown={e=>e.key==="Enter"&&addReading()} autoFocus/>
           </div>
-          <div style={{marginBottom:24}}>
-            <div style={{fontSize:9,letterSpacing:2.5,color:C.textMid,textTransform:"uppercase",marginBottom:8}}>Nota (opcional)</div>
-            <input type="text" value={newNote} onChange={e=>setNewNote(e.target.value)}
-              placeholder="viagem longa..." style={{...inp,fontSize:14,padding:"14px 16px"}}/>
-          </div>
           <button onClick={addReading} disabled={!newValue||saving} style={{width:"100%",padding:"18px",background:newValue?C.accent:C.surfaceHi,color:newValue?C.bg:C.textLow,border:"none",borderRadius:12,fontSize:13,fontWeight:700,letterSpacing:2,textTransform:"uppercase",cursor:newValue?"pointer":"not-allowed",fontFamily:"inherit"}}>
             {saving?"A guardar…":"Guardar Leitura"}
           </button>
           {last&&(
             <div style={{...card,marginTop:20,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
-                <div style={{fontSize:9,color:C.textLow,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Contador actual</div>
+                <div style={{fontSize:9,color:C.textLow,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Contador</div>
                 <div style={{fontSize:11,color:C.textMid}}>{fmtDateLong(last.date)}</div>
               </div>
               <div style={{textAlign:"right"}}>
-                <div style={{fontSize:20,fontWeight:700,color:C.textHi}}>{last.value.toLocaleString("pt-PT",{minimumFractionDigits:1})}</div>
+                <div style={{fontSize:28,fontWeight:700,color:C.textHi}}>{last.value.toLocaleString("pt-PT",{minimumFractionDigits:1})}</div>
                 <div style={{fontSize:9,color:C.textLow}}>kWh</div>
               </div>
             </div>
@@ -526,15 +522,23 @@ export default function App() {
       {/* DATA */}
       {tab==="data"&&(
         <div style={{padding:"20px 20px"}}>
-          <div style={{display:"flex",gap:6,marginBottom:6,overflowX:"auto",paddingBottom:2}}>
-            <button style={pill(carFilter==="all")} onClick={()=>setCarFilter("all")}>Todos</button>
-            <button style={pill(carFilter==="tesla",C.tesla)} onClick={()=>setCarFilter("tesla")}>Tesla</button>
-            <button style={pill(carFilter==="renault",C.renault)} onClick={()=>setCarFilter("renault")}>Renault</button>
-          </div>
-          <div style={{display:"flex",gap:6,marginBottom:24,overflowX:"auto",paddingBottom:2}}>
-            {PERIOD_FILTERS.map(f=>(
-              <button key={f.id} style={{...pill(periodFilter===f.id),padding:"4px 12px",fontSize:9}} onClick={()=>setPeriodFilter(f.id)}>{f.label}</button>
-            ))}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24,gap:8}}>
+            <div style={{display:"flex",gap:6}}>
+              <button style={pill(carFilter==="all")} onClick={()=>setCarFilter("all")}>Todos</button>
+              <button style={pill(carFilter==="tesla",C.tesla)} onClick={()=>setCarFilter("tesla")}>Tesla</button>
+              <button style={pill(carFilter==="renault",C.renault)} onClick={()=>setCarFilter("renault")}>Renault</button>
+            </div>
+            <div style={{display:"flex",gap:4}}>
+              {PERIOD_FILTERS.map(f=>(
+                <button key={f.id} onClick={()=>setPeriodFilter(f.id)} style={{
+                  padding:"5px 10px",background:periodFilter===f.id?C.surfaceHi:"none",
+                  color:periodFilter===f.id?C.textHi:C.textLow,
+                  border:`1px solid ${periodFilter===f.id?C.border:"transparent"}`,
+                  borderRadius:8,fontSize:9,letterSpacing:1,cursor:"pointer",
+                  textTransform:"uppercase",fontFamily:"inherit",
+                }}>{f.label}</button>
+              ))}
+            </div>
           </div>
           <MonthlyChart sessions={filteredSessions} invoices={invoices} unit={unit} onToggle={()=>setUnit(u=>u==="kwh"?"eur":"kwh")}/>
           {carFilter==="all"&&(

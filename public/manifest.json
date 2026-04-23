@@ -4,11 +4,12 @@
   "description": "Registo de carregamentos EV e cálculo de débito ao condomínio",
   "start_url": "/ev-tracker/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "background_color": "#080a07",
   "theme_color": "#080a07",
   "orientation": "portrait",
   "icons": [
-    { "src": "/ev-tracker/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/ev-tracker/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/ev-tracker/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/ev-tracker/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable any" }
   ]
 }

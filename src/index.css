@@ -6,10 +6,16 @@ body { background-color: #080a07 !important; overscroll-behavior: none; }
 body::after {
   content: '';
   position: fixed;
-  bottom: 0;
+  bottom: -100px;
   left: 0;
   right: 0;
-  height: env(safe-area-inset-bottom, 20px);
+  height: calc(env(safe-area-inset-bottom, 20px) + 100px);
   background: #080a07;
-  z-index: 999;
+  z-index: 9999;
+}
+
+@media (display-mode: standalone) {
+  body {
+    background-color: #080a07;
+  }
 }

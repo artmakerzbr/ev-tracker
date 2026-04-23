@@ -115,9 +115,14 @@ function fmtDateLong(iso) {
   if (!iso) return "—";
   return new Date(iso+"T12:00:00").toLocaleDateString("pt-PT",{day:"2-digit",month:"short",year:"numeric"});
 }
-function fmtMonthLabel(isoMonth) {
+function fmtMonthLabel(isoMonth, showYear=true) {
   const [y,m]=isoMonth.split("-");
-  return new Date(parseInt(y),parseInt(m)-1,15).toLocaleDateString("pt-PT",{month:"short",year:"numeric"});
+  const d=new Date(parseInt(y),parseInt(m)-1,15);
+  const mon=d.toLocaleDateString("pt-PT",{month:"short"});
+  // Capitalise first letter
+  const monCap=mon.charAt(0).toUpperCase()+mon.slice(1).replace(".","");
+  if (!showYear) return monCap;
+  return `${monCap} ${y}`;
 }
 function daysSince(iso) {
   if (!iso) return null;
@@ -193,7 +198,7 @@ function MonthlyChart({sessions,invoices,fallbackRate,unit,onToggle,selectedMont
           {selData&&(
             <span style={{marginLeft:10,fontSize:12,fontWeight:700,color:C.accent}}>
               {unit==="eur"&&selData.eur>0
-                ?`${selData.eur.toFixed(2)} €${selData.estimated&&!selData.hasRate?" *":""}`
+                ?`${selData.eur.toFixed(2)} €`
                 :`${selData.kwh} kWh`}
             </span>
           )}
@@ -205,9 +210,9 @@ function MonthlyChart({sessions,invoices,fallbackRate,unit,onToggle,selectedMont
         )}
       </div>
       {unit==="eur"&&selData?.estimated&&!selData?.hasRate&&(
-        <div style={{fontSize:9,color:C.textMid,marginBottom:8}}>* estimativa baseada na última tarifa conhecida</div>
+        <div style={{fontSize:9,color:C.textLow,marginBottom:8,fontStyle:"italic"}}>estimativa baseada na última tarifa conhecida</div>
       )}
-      <div style={{display:"flex",alignItems:"flex-end",gap:3,height:88,padding:"0 2px",marginTop:10}}>
+      <div style={{display:"flex",alignItems:"flex-end",gap:3,height:88,padding:"0 2px",marginTop:10,overflow:"hidden"}}>
         {months.map(m=>{
           const v=unit==="eur"?m.eur:m.kwh;
           const h=Math.max(4,Math.round((v/maxV)*76));
@@ -216,8 +221,8 @@ function MonthlyChart({sessions,invoices,fallbackRate,unit,onToggle,selectedMont
             <div key={m.k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}
               onClick={()=>onSelectMonth(m.k)}>
               <div style={{width:"100%",height:h,borderRadius:"4px 4px 0 0",background:isSelected?C.accent:m.estimated&&!m.hasRate?`${C.accent}18`:`${C.accent}35`,transition:"all 0.2s"}}/>
-              <span style={{fontSize:8,color:isSelected?C.textHi:C.textMid,textTransform:"uppercase",letterSpacing:0.3,textAlign:"center",lineHeight:1.2}}>
-                {fmtMonthLabel(m.k+"-01").split(" ")[0]}
+              <span style={{fontSize:8,color:isSelected?C.textHi:C.textMid,letterSpacing:0.3,textAlign:"center",lineHeight:1.2}}>
+                {(()=>{const mo=fmtMonthLabel(m.k+"-01",false);const isJan=m.k.endsWith("-01");const idx=months.indexOf(m);return idx===0||isJan?<>{mo}<br/><span style={{fontSize:7,opacity:0.7}}>{m.k.slice(0,4)}</span></>:mo;})()}
               </span>
             </div>
           );
@@ -773,8 +778,8 @@ Gerado em ${fmtDateLong(today())}
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       {r.delta!=null&&r.delta>0&&(
                         <div onClick={()=>setUnit(u=>u==="kwh"?"eur":"kwh")} style={{cursor:"pointer",userSelect:"none",WebkitUserSelect:"none",textAlign:"right"}}>
-                          <div style={{fontSize:12,fontWeight:600,color:unit==="eur"&&r.eur!=null?r.estimated?C.textMid:C.accentDim:C.accent}}>
-                            {unit==="eur"?(r.eur!=null?`${r.eur} €${r.estimated?" *":""}` :"—"):`+${r.delta} kWh`}
+                          <div style={{fontSize:13,fontWeight:600,color:unit==="eur"&&r.eur!=null?r.estimated?C.textMid:C.accentDim:C.accent}}>
+                            {unit==="eur"?(r.eur!=null?`${r.eur} €`:"—"):`+${r.delta} kWh`}
                           </div>
                         </div>
                       )}

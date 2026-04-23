@@ -399,6 +399,8 @@ Gerado em ${fmtDateLong(today())}
     a.download = `debito-condominio-${result.label?.replace(/[^a-z0-9]/gi,"-")||"fatura"}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
   function calcBilling(inv){
     setBillingInv(inv);
     const inRange=readings.filter(r=>r.date&&r.date>=inv.periodo_inicio&&r.date<=inv.periodo_fim);
@@ -907,7 +909,7 @@ Gerado em ${fmtDateLong(today())}
               letterSpacing:2,textTransform:"uppercase",
               cursor:newValue?"pointer":"not-allowed",fontFamily:"inherit",
             }}>
-              {saving?"A guardar…":"Guardar"}
+              {saving?"A guardar...":"Guardar"}
             </button>
           </div>
         </>

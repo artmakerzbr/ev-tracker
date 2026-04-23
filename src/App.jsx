@@ -121,7 +121,9 @@ function fmtMonthLabel(isoMonth) {
 }
 function daysSince(iso) {
   if (!iso) return null;
-  return Math.floor((new Date()-new Date(iso+"T12:00:00"))/86400000);
+  const now = new Date();
+  const then = new Date(iso+"T12:00:00");
+  return Math.max(0, Math.floor((now-then)/86400000));
 }
 function cutoffFor(f) {
   if (f==="all") return null;
@@ -237,11 +239,13 @@ export default function App() {
   const [toast,     setToast]     = useState(null);
   const [newValue,  setNewValue]  = useState("");
   const [showSheet, setShowSheet] = useState(false);
+  const [homeUnit,  setHomeUnit]  = useState("kwh");
   const [carFilter,    setCarFilter]    = useState("all");
   const [periodFilter, setPeriodFilter] = useState("all");
   const [selectedMonth,setSelectedMonth]= useState(null);
   const [invoiceData,  setInvoiceData]  = useState(null);
   const [billingResult,setBillingResult]= useState(null);
+  const [billingInv,   setBillingInv]   = useState(null);
   const [extracting,   setExtracting]   = useState(false);
   const [extractError, setExtractError] = useState(null);
   const [petrolPrice,  setPetrolPrice]  = useState(null);
@@ -362,7 +366,41 @@ export default function App() {
     setExtracting(false);
   }
 
+  function exportPDF(result, inv) {
+    const lines = result.lines.map(l =>
+      `  ${l.label}\n  ${l.kwh} kWh × ${l.preco.toFixed(4)} € = ${l.sub.toFixed(2)} €\n  IVA ${l.iva}% = ${l.vat.toFixed(2)} €`
+    ).join("\n\n");
+    const content = `GARAGEM · EV TRACKER
+Débito ao Condomínio
+${"─".repeat(40)}
+
+Fatura: ${inv?.label || result.label}
+Período: ${fmtDateLong(result.first.date)} → ${fmtDateLong(result.last.date)}
+
+Leitura inicial: ${result.first.value} kWh
+Leitura final:   ${result.last.value} kWh
+Consumo total:   ${result.consumption} kWh
+
+${"─".repeat(40)}
+DETALHE DO CÁLCULO
+
+${lines}
+
+${"─".repeat(40)}
+TOTAL A PAGAR: ${result.grand.toFixed(2)} €
+${"─".repeat(40)}
+
+Gerado em ${fmtDateLong(today())}
+`;
+    const blob = new Blob([content], {type:"text/plain;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `debito-condominio-${result.label?.replace(/[^a-z0-9]/gi,"-")||"fatura"}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   function calcBilling(inv){
+    setBillingInv(inv);
     const inRange=readings.filter(r=>r.date&&r.date>=inv.periodo_inicio&&r.date<=inv.periodo_fim);
     const before=readings.filter(r=>r.date&&r.date<inv.periodo_inicio);
     const after=readings.filter(r=>r.date&&r.date>inv.periodo_fim);
@@ -468,11 +506,16 @@ export default function App() {
   const headerContent = {
     home: (<div style={{textAlign:"center"}}>
       <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:10}}>Último carregamento</div>
-      <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center"}}>
+      <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center",cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}
+        onClick={()=>fallbackRate&&setHomeUnit(u=>u==="kwh"?"eur":"kwh")}>
         <span style={{fontSize:52,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1}}>
-          {loaded&&lastDelta!=null?`+${lastDelta}`:"—"}
+          {loaded&&lastDelta!=null
+            ?(homeUnit==="eur"&&fallbackRate
+              ?`${toEur(lastDelta,rateForDate(last?.date,invoices)||fallbackRate)}`
+              :`+${lastDelta}`)
+            :"—"}
         </span>
-        <span style={{fontSize:16,color:C.accentDim}}>kWh</span>
+        <span style={{fontSize:16,color:C.accentDim}}>{homeUnit==="eur"&&fallbackRate?"€":"kWh"}</span>
       </div>
       <div style={{fontSize:11,color:C.textMid,marginTop:8}}>
         {lastDays===0?"Hoje":lastDays===1?"Ontem":lastDays!=null?`Há ${lastDays} dias`:"Sem leituras"}
@@ -483,17 +526,28 @@ export default function App() {
       <div style={{fontSize:9,color:C.textLow,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>
         {selectedMonth?fmtMonthLabel(selectedMonth+"-01"):periodFilter==="all"?"Total acumulado":periodFilter==="month"?"Último mês":periodFilter==="month3"?"Últimos 3 meses":"Último ano"}
       </div>
-      <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center",cursor:hasEur?"pointer":"default",userSelect:"none",WebkitUserSelect:"none"}}
-        onClick={()=>hasEur&&setUnit(u=>u==="kwh"?"eur":"kwh")}>
+      <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center",cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}
+        onClick={()=>setUnit(u=>u==="kwh"?"eur":"kwh")}>
         <span style={{fontSize:44,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1}}>
-          {unit==="eur"?`${periodEur}`:periodKwh}
+          {unit==="eur"?`${selectedMonth
+            ? +filteredSessions.filter(r=>r.date?.slice(0,7)===selectedMonth).reduce((s,r)=>s+(r.eur||0),0).toFixed(2)
+            : periodEur}`
+          : selectedMonth
+            ? +filteredSessions.filter(r=>r.date?.slice(0,7)===selectedMonth).reduce((s,r)=>s+r.delta,0).toFixed(1)
+            : periodKwh}
         </span>
         <span style={{fontSize:14,color:C.accentDim}}>{unit==="eur"?"€":"kWh"}</span>
       </div>
-      <div style={{fontSize:11,color:C.textMid,marginTop:6}}>
-        {!selectedMonth&&`${periodSessions} carregamentos`}
-        {!selectedMonth&&unit==="kwh"&&periodEur>0&&<span style={{marginLeft:10,color:C.textLow}}>≈ {periodEur} €</span>}
-        {!selectedMonth&&unit==="eur"&&<span style={{marginLeft:10,color:C.textLow}}>{periodKwh} kWh</span>}
+      <div style={{fontSize:13,color:C.textMid,marginTop:6}}>
+        {(()=>{
+          const s=selectedMonth
+            ?filteredSessions.filter(r=>r.date?.slice(0,7)===selectedMonth)
+            :filteredSessions;
+          const cnt=s.length;
+          const eur=+s.reduce((a,r)=>a+(r.eur||0),0).toFixed(2);
+          const kwh=+s.reduce((a,r)=>a+r.delta,0).toFixed(1);
+          return <>{cnt} carregamentos{unit==="kwh"&&eur>0&&<span style={{marginLeft:10,color:C.textLow}}>≈ {eur} €</span>}{unit==="eur"&&<span style={{marginLeft:10,color:C.textLow}}>{kwh} kWh</span>}</>;
+        })()}
       </div>
     </div>),
     billing: lastInv?(<div style={{textAlign:"center"}}>
@@ -562,62 +616,65 @@ export default function App() {
             marginBottom:20,
           }}>Registar Leitura</button>
 
-          {/* Counter card */}
-          {last&&(
-            <div style={{...card,display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-              <div>
-                <div style={{fontSize:9,color:C.textLow,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Contador</div>
-                <div style={{fontSize:11,color:C.textMid}}>{fmtDateLong(last.date)}</div>
-              </div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontSize:28,fontWeight:700,color:C.textHi}}>{last.value.toLocaleString("pt-PT",{minimumFractionDigits:1})}</div>
-                <div style={{fontSize:9,color:C.textLow}}>kWh</div>
-              </div>
-            </div>
-          )}
-
           {/* Stats grid */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
             <div style={card}>
               <div style={{fontSize:9,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Este mês</div>
-              <div style={{fontSize:22,fontWeight:700,color:C.textHi,lineHeight:1}}>{thisMonthKwh}</div>
-              <div style={{fontSize:9,color:C.textMid,marginTop:3}}>kWh</div>
-              {thisMonthEur>0&&<div style={{fontSize:11,color:C.accentDim,marginTop:6}}>{thisMonthEur} €</div>}
+              {thisMonthEur>0?(
+                <>
+                  <div style={{fontSize:26,fontWeight:700,color:C.accent,lineHeight:1}}>{thisMonthEur} €</div>
+                  <div style={{fontSize:11,color:C.textMid,marginTop:5}}>{thisMonthKwh} kWh</div>
+                </>
+              ):(
+                <>
+                  <div style={{fontSize:26,fontWeight:700,color:C.textHi,lineHeight:1}}>{thisMonthKwh}</div>
+                  <div style={{fontSize:11,color:C.textMid,marginTop:5}}>kWh</div>
+                </>
+              )}
             </div>
             <div style={card}>
               <div style={{fontSize:9,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Último ano</div>
-              <div style={{fontSize:22,fontWeight:700,color:C.textHi,lineHeight:1}}>{yearKwh}</div>
-              <div style={{fontSize:9,color:C.textMid,marginTop:3}}>kWh</div>
-              {yearEur>0&&<div style={{fontSize:11,color:C.accentDim,marginTop:6}}>{yearEur} €</div>}
+              {yearEur>0?(
+                <>
+                  <div style={{fontSize:26,fontWeight:700,color:C.accent,lineHeight:1}}>{yearEur} €</div>
+                  <div style={{fontSize:11,color:C.textMid,marginTop:5}}>{yearKwh} kWh</div>
+                </>
+              ):(
+                <>
+                  <div style={{fontSize:26,fontWeight:700,color:C.textHi,lineHeight:1}}>{yearKwh}</div>
+                  <div style={{fontSize:11,color:C.textMid,marginTop:5}}>kWh</div>
+                </>
+              )}
             </div>
           </div>
 
           {/* Fuel saving card */}
-          {petrolPrice&&(thisMonthFuelSaving!=null||yearSaving!=null)&&(
+          {petrolPrice?(
             <div style={{...card,borderLeft:`3px solid ${C.accentDim}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
                 <div style={{fontSize:9,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase"}}>Poupança vs gasolina</div>
-                <div style={{fontSize:8,color:C.textLow}}>{petrolPrice?.toFixed(3)} €/L · {petrolUpdated&&fmtDate(petrolUpdated)}</div>
+                <div style={{fontSize:8,color:C.textLow}}>{petrolPrice.toFixed(3)} €/L · {petrolUpdated&&fmtDate(petrolUpdated)}</div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                {thisMonthFuelSaving!=null&&(
-                  <div>
-                    <div style={{fontSize:9,color:C.textLow,marginBottom:4}}>Este mês</div>
-                    <div style={{fontSize:20,fontWeight:700,color:thisMonthFuelSaving>0?C.accent:C.danger}}>
-                      {thisMonthFuelSaving>0?"+":""}{thisMonthFuelSaving} €
-                    </div>
+                <div>
+                  <div style={{fontSize:9,color:C.textLow,marginBottom:4}}>Este mês</div>
+                  <div style={{fontSize:22,fontWeight:700,color:thisMonthFuelSaving>0?C.accent:C.danger}}>
+                    {thisMonthFuelSaving!=null?`${thisMonthFuelSaving>0?"+":""}${thisMonthFuelSaving} €`:"—"}
                   </div>
-                )}
-                {yearSaving!=null&&(
-                  <div>
-                    <div style={{fontSize:9,color:C.textLow,marginBottom:4}}>Último ano</div>
-                    <div style={{fontSize:20,fontWeight:700,color:yearSaving>0?C.accent:C.danger}}>
-                      {yearSaving>0?"+":""}{yearSaving} €
-                    </div>
+                </div>
+                <div>
+                  <div style={{fontSize:9,color:C.textLow,marginBottom:4}}>Último ano</div>
+                  <div style={{fontSize:22,fontWeight:700,color:yearSaving>0?C.accent:C.danger}}>
+                    {yearSaving!=null?`${yearSaving>0?"+":""}${yearSaving} €`:"—"}
                   </div>
-                )}
+                </div>
               </div>
-              <div style={{fontSize:8,color:C.textLow,marginTop:8}}>vs carro a gasolina equivalente (7L/100km)</div>
+              <div style={{fontSize:8,color:C.textLow,marginTop:10}}>vs carro a gasolina equiv. (7L/100km)</div>
+            </div>
+          ):(
+            <div style={{...card,opacity:0.5}}>
+              <div style={{fontSize:9,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>Poupança vs gasolina</div>
+              <div style={{fontSize:11,color:C.textLow}}>A obter preço da gasolina…</div>
             </div>
           )}
         </div>
@@ -777,6 +834,15 @@ export default function App() {
                       </div>
                     ))}
                   </div>
+                  <button onClick={()=>exportPDF(billingResult,billingInv)} style={{
+                    width:"100%",padding:"12px",marginTop:16,
+                    background:"none",color:C.textMid,
+                    border:`1px solid ${C.border}`,borderRadius:8,
+                    fontSize:10,letterSpacing:2,textTransform:"uppercase",
+                    cursor:"pointer",fontFamily:"inherit",
+                  }}>
+                    Exportar documento
+                  </button>
                 </div>
               )}
             </div>

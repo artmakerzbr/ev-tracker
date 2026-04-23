@@ -1,3 +1,15 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #root { background: #080a07; min-height: 100dvh; color-scheme: dark; }
 body { background-color: #080a07 !important; overscroll-behavior: none; }
+
+/* Fill navigation bar area with app background */
+body::after {
+  content: '';
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-bottom, 20px);
+  background: #080a07;
+  z-index: 999;
+}

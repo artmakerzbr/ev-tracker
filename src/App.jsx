@@ -289,22 +289,25 @@ export default function App() {
 
   async function fetchPetrolPrice(){
     try {
-      const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:200,
-          tools:[{type:"web_search_20250305",name:"web_search"}],
-          messages:[{role:"user",content:"Qual é o preço médio actual da gasolina 95 em Portugal em euros por litro? Responde APENAS com o número, ex: 1.72"}]})});
+      const resp=await fetch("https://precoscombustiveis.dgeg.gov.pt/api/PrecoComb/GetPrecosPorTipoDeConbustivel?idioma=pt&tipoCombustivel=3");
       const data=await resp.json();
-      const text=data.content?.find(b=>b.type==="text")?.text||"";
-      const match=text.match(/(\d+[.,]\d+)/);
-      if (match) {
-        const price=parseFloat(match[1].replace(",","."));
-        setPetrolPrice(price);
+      const items=data?.resultado||[];
+      const prices=items.map(i=>parseFloat(i.preco?.replace(",",".")||"0")).filter(p=>p>0);
+      if (prices.length>0){
+        const avg=+(prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(3);
+        setPetrolPrice(avg);
         const d=today();
         setPetrolUpdated(d);
-        localStorage.setItem("petrol-price",price.toString());
+        localStorage.setItem("petrol-price",avg.toString());
         localStorage.setItem("petrol-date",d);
-      }
-    } catch {}
+      } else { throw new Error("no data"); }
+    } catch {
+      const fallback=1.72;
+      setPetrolPrice(fallback);
+      setPetrolUpdated(today());
+      localStorage.setItem("petrol-price",fallback.toString());
+      localStorage.setItem("petrol-date",today());
+    }
   }
 
   function toast_(m){setToast(m);setTimeout(()=>setToast(null),2200);}
@@ -399,6 +402,8 @@ Gerado em ${fmtDateLong(today())}
     a.download = `debito-condominio-${result.label?.replace(/[^a-z0-9]/gi,"-")||"fatura"}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
   function calcBilling(inv){
     setBillingInv(inv);
     const inRange=readings.filter(r=>r.date&&r.date>=inv.periodo_inicio&&r.date<=inv.periodo_fim);
@@ -463,7 +468,7 @@ Gerado em ${fmtDateLong(today())}
   const periodSessions=filteredSessions.length;
 
   // This month stats
-  const thisMonthCut=(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`;})();
+  const thisMonthCut=cutoffFor("month");
   const thisMonthSessions=sessions.filter(r=>r.date&&r.date>=thisMonthCut);
   const thisMonthKwh=+thisMonthSessions.reduce((s,r)=>s+r.delta,0).toFixed(1);
   const thisMonthEur=+thisMonthSessions.reduce((s,r)=>s+(r.eur||0),0).toFixed(2);
@@ -572,7 +577,7 @@ Gerado em ${fmtDateLong(today())}
   );
 
   return (
-    <div style={{fontFamily:"'IBM Plex Mono',monospace",background:C.bg,minHeight:"100dvh",color:C.textHi,maxWidth:480,margin:"0 auto",paddingBottom:80,userSelect:"none",WebkitUserSelect:"none"}}>
+    <div style={{fontFamily:"'IBM Plex Mono',monospace",background:C.bg,minHeight:"100dvh",color:C.textHi,maxWidth:480,margin:"0 auto",paddingBottom:80}}>
 
       {/* HEADER */}
       <div style={{padding:"32px 20px 24px",borderBottom:`1px solid ${C.border}`,textAlign:"center"}}>
@@ -590,7 +595,7 @@ Gerado em ${fmtDateLong(today())}
               const active=selCar===car.id;
               return (
                 <button key={car.id} onClick={()=>pickCar(car.id)} style={{
-                  flex:1,padding:"16px 14px",userSelect:"none",WebkitUserSelect:"none",
+                  flex:1,padding:"16px 14px",
                   background:active?`${car.color}10`:C.surface,
                   border:`1.5px solid ${active?car.color:C.border}`,
                   borderRadius:12,cursor:"pointer",
@@ -650,7 +655,7 @@ Gerado em ${fmtDateLong(today())}
 
           {/* Fuel saving card */}
           {petrolPrice?(
-            <div style={{...card,borderLeft:`3px solid ${C.accentDim}`,userSelect:"none",WebkitUserSelect:"none"}}>
+            <div style={{...card,borderLeft:`3px solid ${C.accentDim}`}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
                 <div style={{fontSize:9,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase"}}>Poupança vs gasolina</div>
                 <div style={{fontSize:8,color:C.textLow}}>{petrolPrice.toFixed(3)} €/L · {petrolUpdated&&fmtDate(petrolUpdated)}</div>

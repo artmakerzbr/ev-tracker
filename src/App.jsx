@@ -597,9 +597,9 @@ Gerado em ${fmtDateLong(today())}
   const headerDisplaySessions = todaySessions.length>0 ? todaySessions : lastDaySessions;
   const headerDate = todaySessions.length>0 ? todayStr : lastSessionDay;
   const headerDaysAgo = headerDate ? daysSince(headerDate) : null;
-  // Primary = last session of the day; extras shown as simple list below
-  const primarySession = headerDisplaySessions[headerDisplaySessions.length-1]||null;
-  const extraSessions = headerDisplaySessions.length>1 ? headerDisplaySessions.slice(0,-1) : [];
+  // Total for the day; individual sessions listed below
+  const dayTotalKwh = +headerDisplaySessions.reduce((s,r)=>s+(r.delta||0),0).toFixed(1);
+  const dayTotalEur = fallbackRate?+headerDisplaySessions.reduce((s,r)=>s+(r.eur||0),0).toFixed(2):null;
 
   // ── Header content per tab ────────────────────────────────────────────
   const headerContent = {
@@ -611,26 +611,30 @@ Gerado em ${fmtDateLong(today())}
         <div style={{display:"flex",alignItems:"baseline",gap:8,justifyContent:"center",cursor:"pointer",userSelect:"none",WebkitUserSelect:"none"}}
           onClick={()=>fallbackRate&&setHomeUnit(u=>u==="kwh"?"eur":"kwh")}>
           <span style={{fontSize:52,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1}}>
-            {loaded&&primarySession
-              ?(homeUnit==="eur"&&fallbackRate
-                ?`${toEur(primarySession.delta,rateForDate(primarySession.date,invoices)||fallbackRate)}`
-                :`+${primarySession.delta}`)
+            {loaded&&dayTotalKwh>0
+              ?(homeUnit==="eur"&&dayTotalEur!=null
+                ?`${dayTotalEur}`
+                :`+${dayTotalKwh}`)
               :"—"}
           </span>
           <span style={{fontSize:16,color:C.accentDim}}>{homeUnit==="eur"&&fallbackRate?"€":"kWh"}</span>
         </div>
-        <div style={{fontSize:11,color:C.textMid,marginTop:8}}>
-          {primarySession?.car&&<span style={{color:CARS[primarySession.car]?.color}}>· {CARS[primarySession.car]?.brand}</span>}
-        </div>
-        {extraSessions.length>0&&(
-          <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:3}}>
-            {extraSessions.map((s,i)=>{
-              const eurVal=fallbackRate?toEur(s.delta,rateForDate(s.date,invoices)||fallbackRate):null;
+        {headerDisplaySessions.length>0&&(
+          <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
+            {[...headerDisplaySessions].reverse().map((s,i)=>{
+              const eurVal=s.eur!=null?s.eur:null;
               return (
-                <div key={s.id||i} style={{display:"flex",justifyContent:"center",gap:8,fontSize:11,color:C.textMid}}>
-                  <span style={{color:CARS[s.car]?.color||C.textMid}}>{CARS[s.car]?.brand||"—"}</span>
-                  <span style={{color:C.textLow}}>·</span>
-                  <span>{homeUnit==="eur"&&eurVal!=null?`${eurVal} €`:`+${s.delta} kWh`}</span>
+                <div key={s.id||i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${C.border}22`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:5,height:5,borderRadius:"50%",background:CARS[s.car]?.color||C.textMid,flexShrink:0}}/>
+                    <div>
+                      <div style={{fontSize:13,color:C.textHi,fontWeight:600}}>{s.value.toLocaleString("pt-PT",{minimumFractionDigits:1})}<span style={{fontSize:9,color:C.textLow,marginLeft:3}}>kWh</span></div>
+                      <div style={{fontSize:10,color:CARS[s.car]?.color||C.textMid}}>{CARS[s.car]?.brand}</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:600,color:homeUnit==="eur"&&eurVal!=null?C.accentDim:C.accent}}>
+                    {homeUnit==="eur"&&eurVal!=null?`${eurVal} €`:`+${s.delta} kWh`}
+                  </div>
                 </div>
               );
             })}

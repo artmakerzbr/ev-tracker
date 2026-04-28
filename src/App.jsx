@@ -627,9 +627,9 @@ Gerado em ${fmtDateLong(today())}
                 <div key={s.id||i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${C.border}22`}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <div style={{width:5,height:5,borderRadius:"50%",background:CARS[s.car]?.color||C.textMid,flexShrink:0}}/>
-                    <div>
-                      <div style={{fontSize:13,color:C.textHi,fontWeight:600}}>{s.value.toLocaleString("pt-PT",{minimumFractionDigits:1})}<span style={{fontSize:9,color:C.textLow,marginLeft:3}}>kWh</span></div>
-                      <div style={{fontSize:10,color:CARS[s.car]?.color||C.textMid}}>{CARS[s.car]?.brand}</div>
+                    <div style={{fontSize:13,color:C.textHi,fontWeight:600}}>
+                      {s.value.toLocaleString("pt-PT",{minimumFractionDigits:1})}<span style={{fontSize:9,color:C.textLow,marginLeft:3}}>kWh</span>
+                      <span style={{fontSize:10,color:CARS[s.car]?.color||C.textMid,marginLeft:6}}>{CARS[s.car]?.brand}</span>
                     </div>
                   </div>
                   <div style={{fontSize:12,fontWeight:600,color:homeUnit==="eur"&&eurVal!=null?C.accentDim:C.accent}}>
@@ -704,38 +704,6 @@ Gerado em ${fmtDateLong(today())}
       {tab==="home"&&(
         <div style={{padding:"24px 20px"}}>
 
-          {/* Car selector */}
-          <div style={{display:"flex",gap:10,marginBottom:24}}>
-            {Object.values(CARS).map(car=>{
-              const active=selCar===car.id;
-              return (
-                <button key={car.id} onClick={()=>pickCar(car.id)} style={{
-                  flex:1,padding:"16px 14px",
-                  background:active?`${car.color}10`:C.surface,
-                  border:`1.5px solid ${active?car.color:C.border}`,
-                  borderRadius:12,cursor:"pointer",
-                  display:"flex",alignItems:"center",gap:14,
-                  transition:"all 0.15s",
-                }}>
-                  <car.Logo size={32} color={active?car.color:C.textLow}/>
-                  <div>
-                    <div style={{fontSize:12,letterSpacing:1,color:active?car.color:C.textMid,textTransform:"uppercase",fontFamily:"inherit",fontWeight:active?700:400}}>{car.brand}</div>
-                    <div style={{fontSize:9,color:active?car.color+"66":C.textLow,fontFamily:"inherit",marginTop:3}}>{car.name}</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Register button */}
-          <button onClick={()=>{setShowSheet(true);setTimeout(()=>inputRef.current?.focus(),100);}} style={{
-            width:"100%",padding:"18px",
-            background:C.accent,color:C.bg,
-            border:"none",borderRadius:12,fontSize:13,fontWeight:700,
-            letterSpacing:2,textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit",
-            marginBottom:20,
-          }}>Registar Leitura</button>
-
           {/* Stats grid */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
             <div style={card}>
@@ -799,6 +767,14 @@ Gerado em ${fmtDateLong(today())}
               <div style={{fontSize:11,color:C.textLow}}>A obter preco da gasolina...</div>
             </div>
           )}
+
+          {/* Register button */}
+          <button onClick={()=>{setShowSheet(true);setTimeout(()=>inputRef.current?.focus(),100);}} style={{
+            width:"100%",padding:"18px",marginTop:16,
+            background:C.accent,color:C.bg,
+            border:"none",borderRadius:12,fontSize:13,fontWeight:700,
+            letterSpacing:2,textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit",
+          }}>Registar Leitura</button>
         </div>
       )}
 
@@ -1014,8 +990,24 @@ Gerado em ${fmtDateLong(today())}
           <div onClick={()=>setShowSheet(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:30}}/>
           <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:C.surface,borderRadius:"20px 20px 0 0",padding:"24px 20px 40px",zIndex:40,borderTop:`1px solid ${C.border}`}}>
             <div style={{width:40,height:4,background:C.border,borderRadius:2,margin:"0 auto 24px"}}/>
-            <div style={{fontSize:9,color:C.textMid,letterSpacing:2.5,textTransform:"uppercase",marginBottom:16,textAlign:"center"}}>
-              {CARS[selCar]?.brand} · {CARS[selCar]?.name}
+            {/* Car selector in sheet */}
+            <div style={{display:"flex",gap:8,marginBottom:20}}>
+              {Object.values(CARS).map(car=>{
+                const active=selCar===car.id;
+                return (
+                  <button key={car.id} onClick={()=>pickCar(car.id)} style={{
+                    flex:1,padding:"12px 10px",
+                    background:active?`${car.color}15`:C.surfaceHi,
+                    border:`1.5px solid ${active?car.color:C.border}`,
+                    borderRadius:10,cursor:"pointer",
+                    display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+                    transition:"all 0.15s",fontFamily:"inherit",
+                  }}>
+                    <car.Logo size={20} color={active?car.color:C.textLow}/>
+                    <span style={{fontSize:11,letterSpacing:1,color:active?car.color:C.textMid,textTransform:"uppercase",fontWeight:active?700:400}}>{car.brand}</span>
+                  </button>
+                );
+              })}
             </div>
             <input ref={inputRef} type="number" inputMode="decimal" value={newValue}
               onChange={e=>setNewValue(e.target.value)}

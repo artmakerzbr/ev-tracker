@@ -918,7 +918,7 @@ Gerado em ${fmtDateLong(today())}
                 <div style={{color:C.danger,fontSize:12,padding:14,background:`${C.danger}12`,borderRadius:10}}>{billingResult.error}</div>
               ):(
                 <div style={{...card,borderTop:`3px solid ${C.accent}`}}>
-                  <div style={{fontSize:9,color:C.textMid,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>{billingResult.label} · deves ao condominio</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><div style={{fontSize:9,color:C.textMid,letterSpacing:2,textTransform:"uppercase"}}>{billingResult.label} · deves ao condominio</div><button onClick={()=>{setBillingResult(null);setBillingInv(null);}} style={{background:"none",border:"none",color:C.textLow,cursor:"pointer",fontSize:16,padding:"0 0 0 12px",lineHeight:1}}>x</button></div>
                   <div style={{fontSize:52,fontWeight:700,color:C.accent,letterSpacing:-2,lineHeight:1,marginBottom:4}}>{billingResult.grand.toFixed(2)} €</div>
                   <div style={{fontSize:12,color:C.textMid,marginBottom:20}}>{billingResult.consumption} kWh</div>
                   <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14}}>

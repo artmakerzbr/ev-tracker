@@ -387,6 +387,7 @@ export default function App() {
     setReadings(r=>r.filter(x=>x.id!==id));
   }
   async function deleteInvoice(id){
+    if(!window.confirm("Tens a certeza que queres apagar esta fatura? Esta acao nao pode ser desfeita.")) return;
     await supabase.from("invoices").delete().eq("id",id);
     setInvoices(i=>i.filter(x=>x.id!==id));
   }

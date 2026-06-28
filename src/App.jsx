@@ -411,7 +411,7 @@ export default function App() {
     try{
       const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result.split(",")[1]);fr.onerror=rej;fr.readAsDataURL(file);});
       const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
+        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,
           messages:[{role:"user",content:[
             {type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},
             {type:"text",text:`Analisa esta fatura de eletricidade portuguesa. Extrai APENAS dados de consumo (ignora potencia, DGEG, IEE, CAV).\nResponde APENAS com JSON, sem backticks:\n{"label":"out - nov 2025","periodo_inicio":"YYYY-MM-DD","periodo_fim":"YYYY-MM-DD","tarifas":[{"periodo_label":"...","kwh":372,"preco_kwh":0.1658,"iva_pct":6}],"consumo_total_kwh":372}`}

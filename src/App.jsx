@@ -885,6 +885,7 @@ Gerado em ${fmtDateLong(today())}
               const invSess=sessions.filter(r=>r.date>=inv.periodo_inicio&&r.date<=inv.periodo_fim);
               const invKwh=+invSess.reduce((s,r)=>s+r.delta,0).toFixed(1);
               const invEur=+invSess.reduce((s,r)=>s+(r.eur||0),0).toFixed(2);
+              const isEstimated=invSess.some(r=>!rateForDate(r.date,invoices));
               const isResult=billingResult?.label===inv.label;
               return (
                 <div key={inv.id} style={{...card,marginBottom:10,border:`1px solid ${isResult?C.accentDim:C.border}`}}>
@@ -897,7 +898,7 @@ Gerado em ${fmtDateLong(today())}
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
                     <div><div style={{fontSize:8,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>Consumo</div><div style={{fontSize:14,fontWeight:600,color:C.textMid}}>{invKwh} kWh</div></div>
-                    <div><div style={{fontSize:8,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>Estimado</div><div style={{fontSize:14,fontWeight:700,color:C.accent}}>{invEur} €</div></div>
+                    <div><div style={{fontSize:8,color:isEstimated?C.textLow:C.accentDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>{isEstimated?"Estimado":"Débito"}</div><div style={{fontSize:14,fontWeight:700,color:C.accent}}>{invEur} €</div></div>
                     <div><div style={{fontSize:8,color:C.textLow,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>Tarifa</div><div style={{fontSize:11,color:C.textMid}}>{inv.tarifas?.[0]?.preco_kwh.toFixed(4)} €</div></div>
                   </div>
                   <button onClick={()=>calcBilling(inv)} style={{width:"100%",padding:"8px",background:"none",color:C.textLow,border:`1px solid ${C.border}`,borderRadius:6,fontSize:9,letterSpacing:2,textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit"}}>
